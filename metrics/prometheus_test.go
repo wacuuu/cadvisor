@@ -122,3 +122,143 @@ func (m *mockInfoProvider) GetMachineInfo() (*info.MachineInfo, error) {
 func mockLabelFunc(*info.ContainerInfo) map[string]string {
 	return map[string]string{}
 }
+
+func TestGetCorePerfEvents(t *testing.T) {
+	containerStats := &info.ContainerStats{
+		Timestamp: time.Unix(1395066367, 0),
+		PerfStats: []info.PerfStat{
+			{
+				ScalingRatio: 1.0,
+				Value:        123,
+				Name:         "instructions",
+				Cpu:          0,
+			},
+			{
+				ScalingRatio: 0.5,
+				Value:        456,
+				Name:         "instructions",
+				Cpu:          1,
+			},
+			{
+				ScalingRatio: 0.7,
+				Value:        321,
+				Name:         "instructions_retired",
+				Cpu:          0,
+			},
+			{
+				ScalingRatio: 0.3,
+				Value:        789,
+				Name:         "instructions_retired",
+				Cpu:          1,
+			},
+		},
+	}
+	metricVals := getCorePerfEvents(containerStats)
+	assert.Equal(t, 4, len(metricVals))
+}
+
+func TestGetCorePerfEventsAggregated(t *testing.T) {
+	*perfAggregateFlag = true
+	containerStats := &info.ContainerStats{
+		Timestamp: time.Unix(1395066367, 0),
+		PerfStats: []info.PerfStat{
+			{
+				ScalingRatio: 1.0,
+				Value:        123,
+				Name:         "instructions",
+				Cpu:          0,
+			},
+			{
+				ScalingRatio: 0.5,
+				Value:        456,
+				Name:         "instructions",
+				Cpu:          1,
+			},
+			{
+				ScalingRatio: 0.7,
+				Value:        321,
+				Name:         "instructions_retired",
+				Cpu:          0,
+			},
+			{
+				ScalingRatio: 0.3,
+				Value:        789,
+				Name:         "instructions_retired",
+				Cpu:          1,
+			},
+		},
+	}
+	metricVals := getCorePerfEvents(containerStats)
+	assert.Equal(t, 2, len(metricVals))
+	*perfAggregateFlag = false
+}
+
+func TestGetCoreScalingRatio(t *testing.T) {
+	containerStats := &info.ContainerStats{
+		Timestamp: time.Unix(1395066367, 0),
+		PerfStats: []info.PerfStat{
+			{
+				ScalingRatio: 1.0,
+				Value:        123,
+				Name:         "instructions",
+				Cpu:          0,
+			},
+			{
+				ScalingRatio: 0.5,
+				Value:        456,
+				Name:         "instructions",
+				Cpu:          1,
+			},
+			{
+				ScalingRatio: 0.7,
+				Value:        321,
+				Name:         "instructions_retired",
+				Cpu:          0,
+			},
+			{
+				ScalingRatio: 0.3,
+				Value:        789,
+				Name:         "instructions_retired",
+				Cpu:          1,
+			},
+		},
+	}
+	metricVals := getCoreScalingRatio(containerStats)
+	assert.Equal(t, 4, len(metricVals))
+}
+
+func TestGetCoreScalingRatioAverage(t *testing.T) {
+	*perfAggregateFlag = true
+	containerStats := &info.ContainerStats{
+		Timestamp: time.Unix(1395066367, 0),
+		PerfStats: []info.PerfStat{
+			{
+				ScalingRatio: 1.0,
+				Value:        123,
+				Name:         "instructions",
+				Cpu:          0,
+			},
+			{
+				ScalingRatio: 0.5,
+				Value:        456,
+				Name:         "instructions",
+				Cpu:          1,
+			},
+			{
+				ScalingRatio: 0.7,
+				Value:        321,
+				Name:         "instructions_retired",
+				Cpu:          0,
+			},
+			{
+				ScalingRatio: 0.3,
+				Value:        789,
+				Name:         "instructions_retired",
+				Cpu:          1,
+			},
+		},
+	}
+	metricVals := getCoreScalingRatio(containerStats)
+	assert.Equal(t, 2, len(metricVals))
+	*perfAggregateFlag = false
+}
