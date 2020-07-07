@@ -15,7 +15,6 @@
 package metrics
 
 import (
-	"flag"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -29,8 +28,6 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/utils/clock"
 )
-
-var perfAggregateFlag = flag.Bool("perf_aggregate", false, "Enable core perf metrics aggregation by 'event' and 'id'")
 
 // asFloat64 converts a uint64 into a float64.
 func asFloat64(v uint64) float64 { return float64(v) }
@@ -1552,25 +1549,48 @@ func NewPrometheusCollector(i infoProvider, f ContainerLabelsFunc, includedMetri
 		}...)
 	}
 	if includedMetrics.Has(container.PerfMetrics) {
+		if includedMetrics.Has(container.PerCpuUsageMetrics) {
+			c.containerMetrics = append(c.containerMetrics, []containerMetric{
+				{
+					name:        "container_perf_events_total",
+					help:        "Perf event metric.",
+					valueType:   prometheus.CounterValue,
+					extraLabels: []string{"cpu", "event"},
+					getValues: func(s *info.ContainerStats) metricValues {
+						return getPerCPUCorePerfEvents(s)
+					},
+				},
+				{
+					name:        "container_perf_events_scaling_ratio",
+					help:        "Perf event metric scaling ratio.",
+					valueType:   prometheus.GaugeValue,
+					extraLabels: []string{"cpu", "event"},
+					getValues: func(s *info.ContainerStats) metricValues {
+						return getPerCPUCoreScalingRatio(s)
+					},
+				}}...)
+		} else {
+			c.containerMetrics = append(c.containerMetrics, []containerMetric{
+				{
+					name:        "container_perf_events_total",
+					help:        "Perf event metric.",
+					valueType:   prometheus.CounterValue,
+					extraLabels: []string{"cpu", "event"},
+					getValues: func(s *info.ContainerStats) metricValues {
+						return getAggregatedCorePerfEvents(s)
+					},
+				},
+				{
+					name:        "container_perf_events_scaling_ratio",
+					help:        "Perf event metric scaling ratio.",
+					valueType:   prometheus.GaugeValue,
+					extraLabels: []string{"cpu", "event"},
+					getValues: func(s *info.ContainerStats) metricValues {
+						return getAvgCoreScalingRatio(s)
+					},
+				}}...)
+		}
 		c.containerMetrics = append(c.containerMetrics, []containerMetric{
-			{
-				name:        "container_perf_events_total",
-				help:        "Perf event metric.",
-				valueType:   prometheus.CounterValue,
-				extraLabels: []string{"cpu", "event"},
-				getValues: func(s *info.ContainerStats) metricValues {
-					return getCorePerfEvents(s)
-				},
-			},
-			{
-				name:        "container_perf_events_scaling_ratio",
-				help:        "Perf event metric scaling ratio.",
-				valueType:   prometheus.GaugeValue,
-				extraLabels: []string{"cpu", "event"},
-				getValues: func(s *info.ContainerStats) metricValues {
-					return getCoreScalingRatio(s)
-				},
-			},
 			{
 				name:        "container_perf_uncore_events_total",
 				help:        "Perf uncore event metric.",
@@ -1891,64 +1911,68 @@ func sanitizeLabelName(name string) string {
 	return invalidNameCharRE.ReplaceAllString(name, "_")
 }
 
-func getCorePerfEvents(s *info.ContainerStats) metricValues {
-	values := make(metricValues, 0)
-	if *perfAggregateFlag {
-		perfEventStatAgg := make(map[string]uint64)
-		// aggregate by event
-		for _, perfStat := range s.PerfStats {
-			perfEventStatAgg[perfStat.Name] += perfStat.Value
-		}
-		// create aggregated metrics
-		for perfEvent, perfValue := range perfEventStatAgg {
-			values = append(values, metricValue{
-				value:     float64(perfValue),
-				labels:    []string{"", perfEvent},
-				timestamp: s.Timestamp,
-			})
-		}
-
-	} else {
-		for _, metric := range s.PerfStats {
-			values = append(values, metricValue{
-				value:     float64(metric.Value),
-				labels:    []string{strconv.Itoa(metric.Cpu), metric.Name},
-				timestamp: s.Timestamp,
-			})
-		}
+func getPerCPUCorePerfEvents(s *info.ContainerStats) metricValues {
+	values := make(metricValues, 0, len(s.PerfStats))
+	for _, metric := range s.PerfStats {
+		values = append(values, metricValue{
+			value:     float64(metric.Value),
+			labels:    []string{strconv.Itoa(metric.Cpu), metric.Name},
+			timestamp: s.Timestamp,
+		})
 	}
 	return values
 }
 
-func getCoreScalingRatio(s *info.ContainerStats) metricValues {
-	values := make(metricValues, 0)
-	if *perfAggregateFlag {
-		perfEventStatAgg := make(map[string][]float64)
-		// collect scaling ratios for event
-		for _, perfStat := range s.PerfStats {
-			perfEventStatAgg[perfStat.Name] = append(perfEventStatAgg[perfStat.Name], perfStat.ScalingRatio)
-		}
-		// calculate average scaling ratio
-		for perfEvent, perfScalingRatio := range perfEventStatAgg {
-			sumScalingRatio := 0.0
-			for _, scalingRatio := range perfScalingRatio {
-				sumScalingRatio += scalingRatio
-			}
+func getPerCPUCoreScalingRatio(s *info.ContainerStats) metricValues {
+	values := make(metricValues, 0, len(s.PerfStats))
+	for _, metric := range s.PerfStats {
+		values = append(values, metricValue{
+			value:     metric.ScalingRatio,
+			labels:    []string{strconv.Itoa(metric.Cpu), metric.Name},
+			timestamp: s.Timestamp,
+		})
+	}
+	return values
+}
 
-			values = append(values, metricValue{
-				value:     sumScalingRatio / float64(len(perfScalingRatio)),
-				labels:    []string{"", perfEvent},
-				timestamp: s.Timestamp,
-			})
+func getAggregatedCorePerfEvents(s *info.ContainerStats) metricValues {
+	values := make(metricValues, 0)
+
+	perfEventStatAgg := make(map[string]uint64)
+	// aggregate by event
+	for _, perfStat := range s.PerfStats {
+		perfEventStatAgg[perfStat.Name] += perfStat.Value
+	}
+	// create aggregated metrics
+	for perfEvent, perfValue := range perfEventStatAgg {
+		values = append(values, metricValue{
+			value:     float64(perfValue),
+			labels:    []string{"", perfEvent},
+			timestamp: s.Timestamp,
+		})
+	}
+	return values
+}
+
+func getAvgCoreScalingRatio(s *info.ContainerStats) metricValues {
+	values := make(metricValues, 0)
+	perfEventStatAgg := make(map[string][]float64)
+	// collect scaling ratios for event
+	for _, perfStat := range s.PerfStats {
+		perfEventStatAgg[perfStat.Name] = append(perfEventStatAgg[perfStat.Name], perfStat.ScalingRatio)
+	}
+	// calculate average scaling ratio
+	for perfEvent, perfScalingRatio := range perfEventStatAgg {
+		sumScalingRatio := 0.0
+		for _, scalingRatio := range perfScalingRatio {
+			sumScalingRatio += scalingRatio
 		}
-	} else {
-		for _, metric := range s.PerfStats {
-			values = append(values, metricValue{
-				value:     metric.ScalingRatio,
-				labels:    []string{strconv.Itoa(metric.Cpu), metric.Name},
-				timestamp: s.Timestamp,
-			})
-		}
+
+		values = append(values, metricValue{
+			value:     sumScalingRatio / float64(len(perfScalingRatio)),
+			labels:    []string{"", perfEvent},
+			timestamp: s.Timestamp,
+		})
 	}
 	return values
 }
