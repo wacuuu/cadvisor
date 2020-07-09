@@ -170,6 +170,14 @@ func TestGetPerCpuCorePerfEvents(t *testing.T) {
 	}
 	metricVals := getPerCPUCorePerfEvents(containerStats)
 	assert.Equal(t, 4, len(metricVals))
+	values := []float64{}
+	for _, metric := range metricVals {
+		values = append(values, metric.value)
+	}
+	assert.Contains(t, values, 123.0)
+	assert.Contains(t, values, 456.0)
+	assert.Contains(t, values, 321.0)
+	assert.Contains(t, values, 789.0)
 }
 
 func TestGetPerCpuCoreScalingRatio(t *testing.T) {
@@ -204,9 +212,17 @@ func TestGetPerCpuCoreScalingRatio(t *testing.T) {
 	}
 	metricVals := getPerCPUCoreScalingRatio(containerStats)
 	assert.Equal(t, 4, len(metricVals))
+	values := []float64{}
+	for _, metric := range metricVals {
+		values = append(values, metric.value)
+	}
+	assert.Contains(t, values, 1.0)
+	assert.Contains(t, values, 0.5)
+	assert.Contains(t, values, 0.7)
+	assert.Contains(t, values, 0.3)
 }
 
-func TestGetCorePerfEventsAggregated(t *testing.T) {
+func TestGetAggCorePerfEvents(t *testing.T) {
 	containerStats := &info.ContainerStats{
 		Timestamp: time.Unix(1395066367, 0),
 		PerfStats: []info.PerfStat{
@@ -238,9 +254,15 @@ func TestGetCorePerfEventsAggregated(t *testing.T) {
 	}
 	metricVals := getAggregatedCorePerfEvents(containerStats)
 	assert.Equal(t, 2, len(metricVals))
+	values := []float64{}
+	for _, metric := range metricVals {
+		values = append(values, metric.value)
+	}
+	assert.Contains(t, values, 579.0)
+	assert.Contains(t, values, 1110.0)
 }
 
-func TestGetCoreScalingRatioAverage(t *testing.T) {
+func TestGetMinCoreScalingRatio(t *testing.T) {
 	containerStats := &info.ContainerStats{
 		Timestamp: time.Unix(1395066367, 0),
 		PerfStats: []info.PerfStat{
@@ -270,6 +292,12 @@ func TestGetCoreScalingRatioAverage(t *testing.T) {
 			},
 		},
 	}
-	metricVals := getAvgCoreScalingRatio(containerStats)
+	metricVals := getMinCoreScalingRatio(containerStats)
 	assert.Equal(t, 2, len(metricVals))
+	values := []float64{}
+	for _, metric := range metricVals {
+		values = append(values, metric.value)
+	}
+	assert.Contains(t, values, 0.5)
+	assert.Contains(t, values, 0.3)
 }

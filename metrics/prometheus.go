@@ -1586,7 +1586,7 @@ func NewPrometheusCollector(i infoProvider, f ContainerLabelsFunc, includedMetri
 					valueType:   prometheus.GaugeValue,
 					extraLabels: []string{"cpu", "event"},
 					getValues: func(s *info.ContainerStats) metricValues {
-						return getAvgCoreScalingRatio(s)
+						return getMinCoreScalingRatio(s)
 					},
 				}}...)
 		}
@@ -1954,22 +1954,23 @@ func getAggregatedCorePerfEvents(s *info.ContainerStats) metricValues {
 	return values
 }
 
-func getAvgCoreScalingRatio(s *info.ContainerStats) metricValues {
+func getMinCoreScalingRatio(s *info.ContainerStats) metricValues {
 	values := make(metricValues, 0)
-	perfEventStatAgg := make(map[string][]float64)
-	// collect scaling ratios for event
+	perfEventStatMin := make(map[string]float64)
+	// search for minimal value of scalin ratio for specific event
 	for _, perfStat := range s.PerfStats {
-		perfEventStatAgg[perfStat.Name] = append(perfEventStatAgg[perfStat.Name], perfStat.ScalingRatio)
-	}
-	// calculate average scaling ratio
-	for perfEvent, perfScalingRatio := range perfEventStatAgg {
-		sumScalingRatio := 0.0
-		for _, scalingRatio := range perfScalingRatio {
-			sumScalingRatio += scalingRatio
+		if _, ok := perfEventStatMin[perfStat.Name]; !ok {
+			// found a new event
+			perfEventStatMin[perfStat.Name] = perfStat.ScalingRatio
+		} else if perfStat.ScalingRatio < perfEventStatMin[perfStat.Name] {
+			// found a lower value of scaling ration so replace the minimal value
+			perfEventStatMin[perfStat.Name] = perfStat.ScalingRatio
 		}
+	}
 
+	for perfEvent, perfScalingRatio := range perfEventStatMin {
 		values = append(values, metricValue{
-			value:     sumScalingRatio / float64(len(perfScalingRatio)),
+			value:     perfScalingRatio,
 			labels:    []string{"", perfEvent},
 			timestamp: s.Timestamp,
 		})

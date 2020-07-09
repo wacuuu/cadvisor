@@ -144,7 +144,7 @@ Core perf events can be exposed on Prometheus endpoint per CPU or aggregated by 
 - `--disable_metrics="percpu"` - core perf events are aggregated
 - `--disable_metrics=""` - core perf events are exposed per CPU.
 
-Aggregated form of core perf events significantly decrease volume of data. For aggregated form of core perf events scaling ratio (`container_perf_metric_scaling ratio`) indicates average scaling ratio for specific event.
+Aggregated form of core perf events significantly decrease volume of data. For aggregated form of core perf events scaling ratio (`container_perf_metric_scaling ratio`) indicates the lowest value of scaling ratio for specific event to show the worst precision.
 
 ### Perf subsystem introduction
 
