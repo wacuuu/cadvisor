@@ -55,7 +55,7 @@ func TestCollector_UpdateStats(t *testing.T) {
 		ID:          2,
 	})
 	assert.NoError(t, err)
-	err = binary.Write(scaledBuffer, binary.LittleEndian, ReadFormat{
+	err = binary.Write(noEventsForRunningPID, binary.LittleEndian, ReadFormat{
 		Value:       0,
 		TimeEnabled: 3,
 		TimeRunning: 0,
@@ -72,7 +72,7 @@ func TestCollector_UpdateStats(t *testing.T) {
 	err = collector.UpdateStats(stats)
 
 	assert.NoError(t, err)
-	assert.Len(t, stats.PerfStats, 2)
+	assert.Len(t, stats.PerfStats, 3)
 
 	assert.Contains(t, stats.PerfStats, info.PerfStat{
 		ScalingRatio: 0.3333333333333333,
