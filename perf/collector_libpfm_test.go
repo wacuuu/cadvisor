@@ -40,6 +40,7 @@ func TestCollector_UpdateStats(t *testing.T) {
 	collector := collector{uncore: &stats.NoopCollector{}}
 	notScaledBuffer := buffer{bytes.NewBuffer([]byte{})}
 	scaledBuffer := buffer{bytes.NewBuffer([]byte{})}
+	noEventsForRunningPID := buffer{bytes.NewBuffer([]byte{})}
 	err := binary.Write(notScaledBuffer, binary.LittleEndian, ReadFormat{
 		Value:       123456789,
 		TimeEnabled: 100,
@@ -54,16 +55,24 @@ func TestCollector_UpdateStats(t *testing.T) {
 		ID:          2,
 	})
 	assert.NoError(t, err)
+	err = binary.Write(noEventsForRunningPID, binary.LittleEndian, ReadFormat{
+		Value:       0,
+		TimeEnabled: 3,
+		TimeRunning: 0,
+		ID:          3,
+	})
+	assert.NoError(t, err)
 	collector.cpuFiles = map[string]map[int]readerCloser{
 		"instructions": {0: notScaledBuffer},
 		"cycles":       {11: scaledBuffer},
+		"cache-misses": {7: noEventsForRunningPID},
 	}
 
 	stats := &info.ContainerStats{}
 	err = collector.UpdateStats(stats)
 
 	assert.NoError(t, err)
-	assert.Len(t, stats.PerfStats, 2)
+	assert.Len(t, stats.PerfStats, 3)
 
 	assert.Contains(t, stats.PerfStats, info.PerfStat{
 		ScalingRatio: 0.3333333333333333,
@@ -77,24 +86,12 @@ func TestCollector_UpdateStats(t *testing.T) {
 		Name:         "instructions",
 		Cpu:          0,
 	})
-}
-
-func TestCreatePerfEventAttr(t *testing.T) {
-	event := CustomEvent{
-		Type:   0x1,
-		Config: Config{uint64(0x2), uint64(0x3), uint64(0x4)},
-		Name:   "fake_event",
-	}
-
-	attributes := createPerfEventAttr(event)
-
-	assert.Equal(t, uint32(1), attributes.Type)
-	assert.Equal(t, uint64(2), attributes.Config)
-	assert.Equal(t, uint64(3), attributes.Ext1)
-	assert.Equal(t, uint64(4), attributes.Ext2)
-	assert.Equal(t, uint64(65536), attributes.Sample_type)
-	assert.Equal(t, uint64(7), attributes.Read_format)
-	assert.Equal(t, uint64(1048578), attributes.Bits)
+	assert.Contains(t, stats.PerfStats, info.PerfStat{
+		ScalingRatio: 0,
+		Value:        0,
+		Name:         "cache-misses",
+		Cpu:          7,
+	})
 }
 
 func TestNewCollector(t *testing.T) {
