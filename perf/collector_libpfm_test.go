@@ -40,6 +40,7 @@ func TestCollector_UpdateStats(t *testing.T) {
 	collector := collector{uncore: &stats.NoopCollector{}}
 	notScaledBuffer := buffer{bytes.NewBuffer([]byte{})}
 	scaledBuffer := buffer{bytes.NewBuffer([]byte{})}
+	noEventsForRunningPID := buffer{bytes.NewBuffer([]byte{})}
 	err := binary.Write(notScaledBuffer, binary.LittleEndian, ReadFormat{
 		Value:       123456789,
 		TimeEnabled: 100,
@@ -54,9 +55,17 @@ func TestCollector_UpdateStats(t *testing.T) {
 		ID:          2,
 	})
 	assert.NoError(t, err)
+	err = binary.Write(scaledBuffer, binary.LittleEndian, ReadFormat{
+		Value:       0,
+		TimeEnabled: 3,
+		TimeRunning: 0,
+		ID:          3,
+	})
+	assert.NoError(t, err)
 	collector.cpuFiles = map[string]map[int]readerCloser{
 		"instructions": {0: notScaledBuffer},
 		"cycles":       {11: scaledBuffer},
+		"cache-misses": {7: noEventsForRunningPID},
 	}
 
 	stats := &info.ContainerStats{}
@@ -76,6 +85,12 @@ func TestCollector_UpdateStats(t *testing.T) {
 		Value:        123456789,
 		Name:         "instructions",
 		Cpu:          0,
+	})
+	assert.Contains(t, stats.PerfStats, info.PerfStat{
+		ScalingRatio: 0,
+		Value:        0,
+		Name:         "cache-misses",
+		Cpu:          7,
 	})
 }
 
