@@ -18,7 +18,6 @@
 package perf
 
 import (
-	"errors"
 	"golang.org/x/sys/unix"
 	"bytes"
 	"encoding/binary"
@@ -191,37 +190,68 @@ func TestUncoreParseEventName(t *testing.T) {
 }
 
 func TestCheckGroup(t *testing.T) {
-	err := checkGroup(
-		Group{[]Event{"uncore_imc/cas_count_write"}, false},
-		map[Event]uncorePMUs{})
-
-	assert.Equal(t, err, errors.New("the event \"uncore_imc/cas_count_write\" don't have any PMU to count with"))
-
-	err = checkGroup(
-		Group{[]Event{"uncore_imc/cas_count_write", "uncore_imc/cas_count_read"}, true},
-		map[Event]uncorePMUs{"uncore_imc/cas_count_write": {
-			"uncore_imc_0": {name: "uncore_imc_0", typeOf: 18, cpus: []uint32{0, 1}},
-			"uncore_imc_1": {name: "uncore_imc_1", typeOf: 19, cpus: []uint32{0, 1}},
+	var testCases = []struct {
+		group          Group
+		eventPMUs      map[Event]uncorePMUs
+		expectedOutput string
+	}{
+		{
+			Group{[]Event{"uncore_imc/cas_count_write"}, false},
+			map[Event]uncorePMUs{},
+			"the event \"uncore_imc/cas_count_write\" don't have any PMU to count with",
 		},
-			"uncore_imc/cas_count_read": {
+		{
+			Group{[]Event{"uncore_imc/cas_count_write", "uncore_imc/cas_count_read"}, true},
+			map[Event]uncorePMUs{"uncore_imc/cas_count_write": {
 				"uncore_imc_0": {name: "uncore_imc_0", typeOf: 18, cpus: []uint32{0, 1}},
 				"uncore_imc_1": {name: "uncore_imc_1", typeOf: 19, cpus: []uint32{0, 1}},
 			},
-		})
-
-	assert.Equal(t, err, errors.New("the events in group usually have to be from single PMU, try reorganizing the \"[uncore_imc/cas_count_write uncore_imc/cas_count_read]\" group"))
-
-	err = checkGroup(
-		Group{[]Event{"uncore_imc_0/cas_count_write", "uncore_imc_1/cas_count_read"}, true},
-		map[Event]uncorePMUs{"uncore_imc_0/cas_count_write": {
-			"uncore_imc_0": {name: "uncore_imc_0", typeOf: 18, cpus: []uint32{0, 1}},
-		},
-			"uncore_imc_1/cas_count_read": {
-				"uncore_imc_1": {name: "uncore_imc_1", typeOf: 19, cpus: []uint32{0, 1}},
+				"uncore_imc/cas_count_read": {
+					"uncore_imc_0": {name: "uncore_imc_0", typeOf: 18, cpus: []uint32{0, 1}},
+					"uncore_imc_1": {name: "uncore_imc_1", typeOf: 19, cpus: []uint32{0, 1}},
+				},
 			},
-		})
+			"the events in group usually have to be from single PMU, try reorganizing the \"[uncore_imc/cas_count_write uncore_imc/cas_count_read]\" group",
+		},
+		{
+			Group{[]Event{"uncore_imc_0/cas_count_write", "uncore_imc_1/cas_count_read"}, true},
+			map[Event]uncorePMUs{"uncore_imc_0/cas_count_write": {
+				"uncore_imc_0": {name: "uncore_imc_0", typeOf: 18, cpus: []uint32{0, 1}},
+			},
+				"uncore_imc_1/cas_count_read": {
+					"uncore_imc_1": {name: "uncore_imc_1", typeOf: 19, cpus: []uint32{0, 1}},
+				},
+			},
+			"the events in group usually have to be from the same PMU, try reorganizing the \"[uncore_imc_0/cas_count_write uncore_imc_1/cas_count_read]\" group",
+		},
+		{
+			Group{[]Event{"uncore_imc/cas_count_write"}, false},
+			map[Event]uncorePMUs{"uncore_imc/cas_count_write": {
+				"uncore_imc_0": {name: "uncore_imc_0", typeOf: 18, cpus: []uint32{0, 1}},
+				"uncore_imc_1": {name: "uncore_imc_1", typeOf: 19, cpus: []uint32{0, 1}},
+			}},
+			"",
+		},
+		{
+			Group{[]Event{"uncore_imc_0/cas_count_write", "uncore_imc_0/cas_count_read"}, true},
+			map[Event]uncorePMUs{"uncore_imc_0/cas_count_write": {
+				"uncore_imc_0": {name: "uncore_imc_0", typeOf: 18, cpus: []uint32{0, 1}},
+			},
+				"uncore_imc_0/cas_count_read": {
+					"uncore_imc_0": {name: "uncore_imc_0", typeOf: 18, cpus: []uint32{0, 1}},
+				}},
+			"",
+		},
+	}
 
-	assert.Equal(t, err, errors.New("the events in group usually have to be from the same PMU, try reorganizing the \"[uncore_imc_0/cas_count_write uncore_imc_1/cas_count_read]\" group"))
+	for _, tc := range testCases {
+		err := checkGroup(tc.group, tc.eventPMUs)
+		if tc.expectedOutput == "" {
+			assert.Nil(t, err)
+		} else {
+			assert.EqualError(t, err, tc.expectedOutput)
+		}
+	}
 }
 
 func TestReadPerfUncoreStat(t *testing.T) {
