@@ -183,9 +183,7 @@ func (c *collector) setup() error {
 	cgroupFd := int(cgroup.Fd())
 	for i, group := range c.events.Core.Events {
 		// CPUs file descriptors of group leader needed for perf_event_open.
-		leaderFileDescriptors := new([]int)
-		*leaderFileDescriptors = make([]int, c.numCores)
-		//leaderFileDescriptors := make([]int, c.numCores)
+		leaderFileDescriptors := make([]int, c.numCores)
 		for j, event := range group.events {
 			// First element is group leader.
 			isGroupLeader := j == 0
@@ -198,7 +196,7 @@ func (c *collector) setup() error {
 		}
 
 		// Group is prepared so we should reset and enable counting.
-		for _, fd := range *leaderFileDescriptors {
+		for _, fd := range leaderFileDescriptors {
 			err = unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_RESET, 0)
 			err = unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, 0)
 		}
@@ -211,7 +209,7 @@ func (c *collector) setup() error {
 	return nil
 }
 
-func (c *collector) setupRawEvent(event *CustomEvent, cgroup int, index int, leaderFileDescriptors *[]int, leader bool) error {
+func (c *collector) setupRawEvent(event *CustomEvent, cgroup int, index int, leaderFileDescriptors []int, leader bool) error {
 	klog.V(5).Infof("Setting up grouped raw perf event %#v", event)
 
 	config := createPerfEventAttr(*event)
@@ -225,7 +223,7 @@ func (c *collector) setupRawEvent(event *CustomEvent, cgroup int, index int, lea
 	return nil
 }
 
-func (c *collector) setupEvent(name string, cgroup int, index int, leaderFileDescriptors *[]int, leader bool) error {
+func (c *collector) setupEvent(name string, cgroup int, index int, leaderFileDescriptors []int, leader bool) error {
 	if !isLibpfmInitialized {
 		return fmt.Errorf("libpfm4 is not initialized, cannot proceed with setting perf events up")
 	}
@@ -260,7 +258,7 @@ func readPerfEventAttr(name string, perfEventAttrMemory unsafe.Pointer) error {
 	return nil
 }
 
-func (c *collector) registerEvent(config *unix.PerfEventAttr, name string, cgroup int, groupIndex int, leaderFileDescriptors *[]int, leader bool) error {
+func (c *collector) registerEvent(config *unix.PerfEventAttr, name string, cgroup int, groupIndex int, leaderFileDescriptors []int, leader bool) error {
 	for cpu := 0; cpu < c.numCores; cpu++ {
 		var groupFD, pid, flags int
 		if leader {
@@ -270,7 +268,7 @@ func (c *collector) registerEvent(config *unix.PerfEventAttr, name string, cgrou
 			flags = unix.PERF_FLAG_FD_CLOEXEC | unix.PERF_FLAG_PID_CGROUP
 		} else {
 			// If not leader, groupFd should be set to leaders perf file fd.
-			groupFD = (*leaderFileDescriptors)[cpu]
+			groupFD = leaderFileDescriptors[cpu]
 			pid = -1
 			flags = unix.PERF_FLAG_FD_CLOEXEC
 		}
@@ -288,7 +286,7 @@ func (c *collector) registerEvent(config *unix.PerfEventAttr, name string, cgrou
 
 		// If group leader, save fd for others.
 		if leader {
-			(*leaderFileDescriptors)[cpu] = fd
+			leaderFileDescriptors[cpu] = fd
 		}
 	}
 
