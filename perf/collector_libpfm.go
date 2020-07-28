@@ -193,16 +193,21 @@ func (c *collector) setup() error {
 			} else {
 				err = c.setupEvent(string(event), cgroupFd, i, leaderFileDescriptors, isGroupLeader)
 			}
+			if err != nil {
+				return err
+			}
 		}
 
 		// Group is prepared so we should reset and enable counting.
 		for _, fd := range leaderFileDescriptors {
 			err = unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_RESET, 0)
+			if err != nil {
+				return err
+			}
 			err = unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, 0)
-		}
-
-		if err != nil {
-			return err
+			if err != nil {
+				return err
+			}
 		}
 	}
 
