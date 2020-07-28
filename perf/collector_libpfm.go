@@ -122,16 +122,19 @@ func readGroupPerfStat(file readerCloser, group group, cpu int, cgroupPath strin
 }
 
 func getPerfValues(file readerCloser, group group) ([]info.PerfValue, error) {
+	// 24 bytes of GroupReadFormat struct.
+	// 16 bytes of Values struct for each element in group.
+	// See https://man7.org/linux/man-pages/man2/perf_event_open.2.html section "Reading results" with PERF_FORMAT_GROUP specified.
 	buf := make([]byte, 24+16*len(group.names))
 	_, err := file.Read(buf)
 	if err != nil {
-		return []info.PerfValue{}, err
+		return []info.PerfValue{}, fmt.Errorf("unable to read perf event group ( leader = %s ): %w", group.leaderName, err)
 	}
 	perfData := &GroupReadFormat{}
 	reader := bytes.NewReader(buf[:24])
 	err = binary.Read(reader, binary.LittleEndian, perfData)
 	if err != nil {
-		return []info.PerfValue{}, err
+		return []info.PerfValue{}, fmt.Errorf("unable to decode perf event group ( leader = %s ): %w", group.leaderName, err)
 	}
 	values := make([]Values, perfData.Nr)
 	reader = bytes.NewReader(buf[24:])
@@ -162,9 +165,10 @@ func getPerfValues(file readerCloser, group group) ([]info.PerfValue, error) {
 				Name:         name,
 			}
 		}
+		perfStats = append(perfStats, stat)
 	}
 
-	return perfValues, nil
+	return perfStats, nil
 }
 
 func (c *collector) setup() error {
@@ -181,14 +185,15 @@ func (c *collector) setup() error {
 		// CPUs file descriptors of group leader needed for perf_event_open.
 		leaderFileDescriptors := new([]int)
 		*leaderFileDescriptors = make([]int, c.numCores)
+		//leaderFileDescriptors := make([]int, c.numCores)
 		for j, event := range group.events {
 			// First element is group leader.
-			groupLeader := j == 0
+			isGroupLeader := j == 0
 			customEvent, ok := c.eventToCustomEvent[event]
 			if ok {
-				err = c.setupRawEvent(customEvent, cgroupFd, i, leaderFileDescriptors, groupLeader)
+				err = c.setupRawEvent(customEvent, cgroupFd, i, leaderFileDescriptors, isGroupLeader)
 			} else {
-				err = c.setupEvent(string(event), cgroupFd, i, leaderFileDescriptors, groupLeader)
+				err = c.setupEvent(string(event), cgroupFd, i, leaderFileDescriptors, isGroupLeader)
 			}
 		}
 
@@ -217,7 +222,6 @@ func (c *collector) setupRawEvent(event *CustomEvent, cgroup int, index int, lea
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
 
