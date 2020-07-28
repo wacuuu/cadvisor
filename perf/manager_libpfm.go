@@ -39,12 +39,12 @@ func NewManager(configFile string, numCores int, topology []info.Node) (stats.Ma
 
 	file, err := os.Open(configFile)
 	if err != nil {
-		return nil, fmt.Errorf("unable to read configuration file %q: %q", configFile, err)
+		return nil, fmt.Errorf("unable to read configuration file %q: %w", configFile, err)
 	}
 
 	config, err := parseConfig(file)
 	if err != nil {
-		return nil, fmt.Errorf("unable to read configuration file %q: %q", configFile, err)
+		return nil, fmt.Errorf("unable to parse configuration file %q: %w", configFile, err)
 	}
 
 	return &manager{events: config, numCores: numCores, topology: topology}, nil
