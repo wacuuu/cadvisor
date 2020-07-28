@@ -135,7 +135,7 @@ type uncoreCollector struct {
 
 	// Handle for mocking purposes.
 	perfEventOpen func(attr *unix.PerfEventAttr, pid int, cpu int, groupFd int, flags int) (fd int, err error)
-	IoctlSetInt   func(fd int, req uint, value int) error
+	ioctlSetInt   func(fd int, req uint, value int) error
 }
 
 func NewUncoreCollector(cgroupPath string, events PerfEvents, topology []info.Node) stats.Collector {
@@ -148,7 +148,7 @@ func NewUncoreCollector(cgroupPath string, events PerfEvents, topology []info.No
 	collector := &uncoreCollector{
 		topology:      topology,
 		perfEventOpen: unix.PerfEventOpen,
-		IoctlSetInt:   unix.IoctlSetInt,
+		ioctlSetInt:   unix.IoctlSetInt,
 	}
 
 	err := collector.setup(events, systemDevicesPath)
@@ -213,8 +213,8 @@ func (c *uncoreCollector) setup(events PerfEvents, devicesPath string) error {
 			for _, fd := range pmuCPUs {
 				// Call only for used PMUs.
 				if fd != -1 {
-					err = c.IoctlSetInt(fd, unix.PERF_EVENT_IOC_RESET, 0)
-					err = c.IoctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, 0)
+					err = c.ioctlSetInt(fd, unix.PERF_EVENT_IOC_RESET, 0)
+					err = c.ioctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, 0)
 				}
 			}
 		}

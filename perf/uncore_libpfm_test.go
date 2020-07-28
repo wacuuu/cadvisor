@@ -127,7 +127,7 @@ func TestUncoreCollectorSetup(t *testing.T) {
 	collector.perfEventOpen = func(attr *unix.PerfEventAttr, pid int, cpu int, groupFd int, flags int) (fd int, err error) {
 		return int(attr.Config), nil
 	}
-	collector.IoctlSetInt = func(fd int, req uint, value int) error {
+	collector.ioctlSetInt = func(fd int, req uint, value int) error {
 		return nil
 	}
 
