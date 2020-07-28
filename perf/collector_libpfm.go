@@ -140,7 +140,7 @@ func getPerfValues(file readerCloser, group group) ([]info.PerfValue, error) {
 	reader = bytes.NewReader(buf[24:])
 	err = binary.Read(reader, binary.LittleEndian, values)
 	if err != nil {
-		return []info.PerfValue{}, err
+		return []info.PerfValue{}, fmt.Errorf("unable to decode perf event group values ( leader = %s ): %w", group.leaderName, err)
 	}
 
 	scalingRatio := 1.0
@@ -165,10 +165,9 @@ func getPerfValues(file readerCloser, group group) ([]info.PerfValue, error) {
 				Name:         name,
 			}
 		}
-		perfStats = append(perfStats, stat)
 	}
 
-	return perfStats, nil
+	return perfValues, nil
 }
 
 func (c *collector) setup() error {
