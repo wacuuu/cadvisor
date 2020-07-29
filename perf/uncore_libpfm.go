@@ -380,7 +380,7 @@ func (c *uncoreCollector) setupEvent(name string, pmus uncorePMUs, groupIndex in
 	// Register event for all memory controllers.
 	for _, pmu := range pmus {
 		perfEventAttr.Type = pmu.typeOf
-		setGroupAttributes(perfEventAttr, leaderFileDescriptors[pmu.name][pmu.cpus[0]] == -1)
+		setAttributes(perfEventAttr, leaderFileDescriptors[pmu.name][pmu.cpus[0]] == -1)
 		err = c.registerEvent(perfEventAttr, name, pmu.cpus, pmu.name, leaderFileDescriptors, groupIndex)
 		if err != nil {
 			return err
@@ -459,7 +459,7 @@ func (c *uncoreCollector) setupRawEvent(event *CustomEvent, pmus uncorePMUs, gro
 			Name:   event.Name,
 		}
 		config := createPerfEventAttr(newEvent)
-		setGroupAttributes(config, leaderFileDescriptors[pmu.name][pmu.cpus[0]] == -1)
+		setAttributes(config, leaderFileDescriptors[pmu.name][pmu.cpus[0]] == -1)
 		err := c.registerEvent(config, string(newEvent.Name), pmu.cpus, pmu.name, leaderFileDescriptors, groupIndex)
 		if err != nil {
 			return err

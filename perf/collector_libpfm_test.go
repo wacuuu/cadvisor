@@ -165,13 +165,13 @@ func TestSetGroupAttributes(t *testing.T) {
 	}
 
 	attributes := createPerfEventAttr(event)
-	setGroupAttributes(attributes, true)
+	setAttributes(attributes, true)
 	assert.Equal(t, uint64(65536), attributes.Sample_type)
 	assert.Equal(t, uint64(0xf), attributes.Read_format)
 	assert.Equal(t, uint64(0x100003), attributes.Bits)
 
 	attributes = createPerfEventAttr(event)
-	setGroupAttributes(attributes, false)
+	setAttributes(attributes, false)
 	assert.Equal(t, uint64(65536), attributes.Sample_type)
 	assert.Equal(t, uint64(0xf), attributes.Read_format)
 	assert.Equal(t, uint64(0x100002), attributes.Bits)

@@ -217,7 +217,7 @@ func (c *collector) setupRawEvent(event *CustomEvent, cgroup int, index int, lea
 	klog.V(5).Infof("Setting up grouped raw perf event %#v", event)
 
 	config := createPerfEventAttr(*event)
-	setGroupAttributes(config, leader)
+	setAttributes(config, leader)
 	klog.V(5).Infof("perf_event_attr struct prepared: %#v", config)
 
 	err := c.registerEvent(config, string(event.Name), cgroup, index, leaderFileDescriptors, leader)
@@ -242,7 +242,7 @@ func (c *collector) setupEvent(name string, cgroup int, index int, leaderFileDes
 	}
 	perfEventAttr := (*unix.PerfEventAttr)(perfEventAttrMemory)
 
-	setGroupAttributes(perfEventAttr, leader)
+	setAttributes(perfEventAttr, leader)
 
 	klog.V(5).Infof("perf_event_attr: %#v", perfEventAttr)
 	return c.registerEvent(perfEventAttr, name, cgroup, index, leaderFileDescriptors, leader)
@@ -346,7 +346,7 @@ func createPerfEventAttr(event CustomEvent) *unix.PerfEventAttr {
 	return config
 }
 
-func setGroupAttributes(config *unix.PerfEventAttr, leader bool) {
+func setAttributes(config *unix.PerfEventAttr, leader bool) {
 	config.Sample_type = perfSampleIdentifier
 	config.Read_format = unix.PERF_FORMAT_TOTAL_TIME_ENABLED | unix.PERF_FORMAT_TOTAL_TIME_RUNNING | unix.PERF_FORMAT_GROUP | unix.PERF_FORMAT_ID
 	config.Bits = perfAttrBitsInherit | perfAttrBitsExcludeGuest
