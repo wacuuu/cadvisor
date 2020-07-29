@@ -64,7 +64,7 @@ func init() {
 	defer libpmfMutex.Unlock()
 	pErr := C.pfm_initialize()
 	if pErr != C.PFM_SUCCESS {
-		fmt.Printf("unable to initialize libpfm: %d", int(pErr))
+		klog.Errorf("unable to initialize libpfm: %d", int(pErr))
 		return
 	}
 	isLibpfmInitialized = true
