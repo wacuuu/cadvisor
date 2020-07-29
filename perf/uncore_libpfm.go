@@ -214,13 +214,15 @@ func (c *uncoreCollector) setup(events PerfEvents, devicesPath string) error {
 				// Call only for used PMUs.
 				if fd != -1 {
 					err = c.ioctlSetInt(fd, unix.PERF_EVENT_IOC_RESET, 0)
+					if err != nil {
+						return err
+					}
 					err = c.ioctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, 0)
+					if err != nil {
+						return err
+					}
 				}
 			}
-		}
-
-		if err != nil {
-			return err
 		}
 	}
 
