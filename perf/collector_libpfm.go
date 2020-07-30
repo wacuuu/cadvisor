@@ -188,12 +188,20 @@ func (c *collector) setup() error {
 			isGroupLeader := j == 0
 			customEvent, ok := c.eventToCustomEvent[event]
 			if ok {
-				err = c.setupRawEvent(customEvent, cgroupFd, i, leaderFileDescriptors, isGroupLeader)
+				config := c.createConfigFromRawEvent(customEvent, isGroupLeader)
+				err := c.registerEvent(config, string(customEvent.Name), cgroupFd, i, leaderFileDescriptors, isGroupLeader)
+				if err != nil {
+					return err
+				}
 			} else {
-				err = c.setupEvent(string(event), cgroupFd, i, leaderFileDescriptors, isGroupLeader)
-			}
-			if err != nil {
-				return err
+				config, err := c.createConfigFromEvent(event, isGroupLeader)
+				if err != nil {
+					return err
+				}
+				err = c.registerEvent(config, string(event), cgroupFd, i, leaderFileDescriptors, isGroupLeader)
+				if err != nil {
+					return err
+				}
 			}
 		}
 
@@ -211,41 +219,6 @@ func (c *collector) setup() error {
 	}
 
 	return nil
-}
-
-func (c *collector) setupRawEvent(event *CustomEvent, cgroup int, index int, leaderFileDescriptors []int, leader bool) error {
-	klog.V(5).Infof("Setting up grouped raw perf event %#v", event)
-
-	config := createPerfEventAttr(*event)
-	setAttributes(config, leader)
-	klog.V(5).Infof("perf_event_attr struct prepared: %#v", config)
-
-	err := c.registerEvent(config, string(event.Name), cgroup, index, leaderFileDescriptors, leader)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (c *collector) setupEvent(name string, cgroup int, index int, leaderFileDescriptors []int, leader bool) error {
-	if !isLibpfmInitialized {
-		return fmt.Errorf("libpfm4 is not initialized, cannot proceed with setting perf events up")
-	}
-
-	klog.V(5).Infof("Setting up grouped perf event %s", name)
-
-	perfEventAttrMemory := C.malloc(C.ulong(unsafe.Sizeof(unix.PerfEventAttr{})))
-	defer C.free(perfEventAttrMemory)
-	err := readPerfEventAttr(name, perfEventAttrMemory)
-	if err != nil {
-		return err
-	}
-	perfEventAttr := (*unix.PerfEventAttr)(perfEventAttrMemory)
-
-	setAttributes(perfEventAttr, leader)
-
-	klog.V(5).Infof("perf_event_attr: %#v", perfEventAttr)
-	return c.registerEvent(perfEventAttr, name, cgroup, index, leaderFileDescriptors, leader)
 }
 
 func readPerfEventAttr(name string, perfEventAttrMemory unsafe.Pointer) error {
@@ -398,4 +371,31 @@ func mapEventsToCustomEvents(collector *collector) {
 	for key, event := range collector.events.Core.CustomEvents {
 		collector.eventToCustomEvent[event.Name] = &collector.events.Core.CustomEvents[key]
 	}
+}
+
+func (c *collector) createConfigFromRawEvent(event *CustomEvent, isGroupLeader bool) *unix.PerfEventAttr {
+	klog.V(5).Infof("Setting up grouped raw perf event %#v", event)
+
+	config := createPerfEventAttr(*event)
+	setAttributes(config, isGroupLeader)
+	klog.V(5).Infof("perf_event_attr struct prepared: %#v", config)
+
+	return config
+}
+
+func (c *collector) createConfigFromEvent(event Event, isGroupLeader bool) (*unix.PerfEventAttr, error) {
+	klog.V(5).Infof("Setting up grouped perf event %s", string(event))
+
+	perfEventAttrMemory := C.malloc(C.ulong(unsafe.Sizeof(unix.PerfEventAttr{})))
+	defer C.free(perfEventAttrMemory)
+	err := readPerfEventAttr(string(event), perfEventAttrMemory)
+	if err != nil {
+		return nil, err
+	}
+	config := (*unix.PerfEventAttr)(perfEventAttrMemory)
+
+	setAttributes(config, isGroupLeader)
+
+	klog.V(5).Infof("perf_event_attr: %#v", config)
+	return config, nil
 }
