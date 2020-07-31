@@ -278,7 +278,11 @@ func (c *collector) registerEvent(config *unix.PerfEventAttr, name string, cgrou
 		}
 	}
 
-	return newLeaderFileDescriptors, nil
+	if isGroupLeader {
+		return newLeaderFileDescriptors, nil
+	} else {
+		return leaderFileDescriptors, nil
+	}
 }
 
 func (c *collector) addEventFile(index int, name string, cpu int, perfFile *os.File) {
@@ -389,7 +393,6 @@ func (c *collector) createConfigFromRawEvent(event *CustomEvent, isGroupLeader b
 
 	config := createPerfEventAttr(*event)
 	setAttributes(config, isGroupLeader)
-	klog.V(5).Infof("perf_event_attr struct prepared: %#v", config)
 
 	return config
 }
