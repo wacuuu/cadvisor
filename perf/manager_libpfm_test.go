@@ -27,7 +27,7 @@ import (
 )
 
 func TestNoConfigFilePassed(t *testing.T) {
-	manager, err := NewManager("", 1, []info.Node{})
+	manager, err := NewManager("", []info.Node{})
 
 	assert.Nil(t, err)
 	_, ok := manager.(*stats.NoopManager)
@@ -35,21 +35,21 @@ func TestNoConfigFilePassed(t *testing.T) {
 }
 
 func TestNonExistentFile(t *testing.T) {
-	manager, err := NewManager("this-file-is-so-non-existent", 1, []info.Node{})
+	manager, err := NewManager("this-file-is-so-non-existent", []info.Node{})
 
 	assert.NotNil(t, err)
 	assert.Nil(t, manager)
 }
 
 func TestMalformedJsonFile(t *testing.T) {
-	manager, err := NewManager("testing/this-is-some-random.json", 1, []info.Node{})
+	manager, err := NewManager("testing/this-is-some-random.json", []info.Node{})
 
 	assert.NotNil(t, err)
 	assert.Nil(t, manager)
 }
 
 func TestNewManager(t *testing.T) {
-	managerInstance, err := NewManager("testing/perf.json", 1, []info.Node{})
+	managerInstance, err := NewManager("testing/perf.json", []info.Node{})
 
 	assert.Nil(t, err)
 	_, ok := managerInstance.(*manager)

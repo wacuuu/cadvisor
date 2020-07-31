@@ -19,6 +19,7 @@ package perf
 
 import (
 	"fmt"
+	"github.com/google/cadvisor/utils/sysinfo"
 	"os"
 
 	info "github.com/google/cadvisor/info/v1"
@@ -26,13 +27,13 @@ import (
 )
 
 type manager struct {
-	events   PerfEvents
-	numCores int
-	topology []info.Node
+	events      PerfEvents
+	onlineCPUs  []int
+	cpuToSocket map[int]int
 	stats.NoopDestroy
 }
 
-func NewManager(configFile string, numCores int, topology []info.Node) (stats.Manager, error) {
+func NewManager(configFile string, topology []info.Node) (stats.Manager, error) {
 	if configFile == "" {
 		return &stats.NoopManager{}, nil
 	}
@@ -47,11 +48,19 @@ func NewManager(configFile string, numCores int, topology []info.Node) (stats.Ma
 		return nil, fmt.Errorf("unable to parse configuration file %q: %w", configFile, err)
 	}
 
-	return &manager{events: config, numCores: numCores, topology: topology}, nil
+	onlineCPUs := sysinfo.GetOnlineCPUs(topology)
+
+	cpuToSocket := make(map[int]int)
+
+	for _, cpu := range onlineCPUs {
+		cpuToSocket[cpu] = sysinfo.GetSocketFromCPU(topology, cpu)
+	}
+
+	return &manager{events: config, onlineCPUs: onlineCPUs, cpuToSocket: cpuToSocket}, nil
 }
 
 func (m *manager) GetCollector(cgroupPath string) (stats.Collector, error) {
-	collector := newCollector(cgroupPath, m.events, m.numCores, m.topology)
+	collector := newCollector(cgroupPath, m.events, m.onlineCPUs, m.cpuToSocket)
 	err := collector.setup()
 	if err != nil {
 		collector.Destroy()

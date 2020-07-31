@@ -41,7 +41,6 @@ import (
 
 	info "github.com/google/cadvisor/info/v1"
 	"github.com/google/cadvisor/stats"
-	"github.com/google/cadvisor/utils/sysinfo"
 )
 
 type pmu struct {
@@ -131,14 +130,14 @@ type uncoreCollector struct {
 	cpuFiles           map[int]map[string]group
 	events             []Group
 	eventToCustomEvent map[Event]*CustomEvent
-	topology           []info.Node
+	cpuToSocket        map[int]int
 
 	// Handle for mocking purposes.
 	perfEventOpen func(attr *unix.PerfEventAttr, pid int, cpu int, groupFd int, flags int) (fd int, err error)
 	ioctlSetInt   func(fd int, req uint, value int) error
 }
 
-func NewUncoreCollector(cgroupPath string, events PerfEvents, topology []info.Node) stats.Collector {
+func NewUncoreCollector(cgroupPath string, events PerfEvents, cpuToSocket map[int]int) stats.Collector {
 
 	if cgroupPath != rootPerfEventPath {
 		// Uncore metric doesn't exists for cgroups, only for entire platform.
@@ -146,7 +145,7 @@ func NewUncoreCollector(cgroupPath string, events PerfEvents, topology []info.No
 	}
 
 	collector := &uncoreCollector{
-		topology:      topology,
+		cpuToSocket:   cpuToSocket,
 		perfEventOpen: unix.PerfEventOpen,
 		ioctlSetInt:   unix.IoctlSetInt,
 	}
@@ -348,7 +347,7 @@ func (c *uncoreCollector) UpdateStats(stats *info.ContainerStats) error {
 	for _, groupPMUs := range c.cpuFiles {
 		for pmu, group := range groupPMUs {
 			for cpu, file := range group.cpuFiles[group.leaderName] {
-				stat, err := readPerfUncoreStat(file, group, cpu, pmu, c.topology)
+				stat, err := readPerfUncoreStat(file, group, cpu, pmu, c.cpuToSocket)
 				if err != nil {
 					klog.Warningf("Unable to read from perf_event_file (event: %q, CPU: %d) for %q: %q", group.leaderName, cpu, pmu, err.Error())
 					continue
@@ -469,10 +468,16 @@ func (c *uncoreCollector) setupRawEvent(event *CustomEvent, pmus uncorePMUs, gro
 	return nil
 }
 
-func readPerfUncoreStat(file readerCloser, group group, cpu int, pmu string, topology []info.Node) ([]info.PerfUncoreStat, error) {
+func readPerfUncoreStat(file readerCloser, group group, cpu int, pmu string, cpuToSocket map[int]int) ([]info.PerfUncoreStat, error) {
 	values, err := getPerfValues(file, group)
 	if err != nil {
 		return nil, err
+	}
+
+	socket, ok := cpuToSocket[cpu]
+	if !ok {
+		// Socket is unknown.
+		socket = -1
 	}
 
 	perfUncoreStats := make([]info.PerfUncoreStat, len(values))
@@ -480,7 +485,7 @@ func readPerfUncoreStat(file readerCloser, group group, cpu int, pmu string, top
 		klog.V(5).Infof("Read metric for event %q for cpu %d from pmu %q: %d", value.Name, cpu, pmu, value.Value)
 		perfUncoreStats[i] = info.PerfUncoreStat{
 			PerfValue: value,
-			Socket:    sysinfo.GetSocketFromCPU(topology, cpu),
+			Socket:    socket,
 			PMU:       pmu,
 		}
 	}

@@ -43,7 +43,7 @@ type collector struct {
 	events             PerfEvents
 	cpuFiles           map[int]group
 	cpuFilesLock       sync.Mutex
-	numCores           int
+	onlineCPUs         []int
 	eventToCustomEvent map[Event]*CustomEvent
 	uncore             stats.Collector
 }
@@ -59,6 +59,10 @@ var (
 	libpmfMutex         = sync.Mutex{}
 )
 
+const (
+	groupLeaderFileDescriptor = -1
+)
+
 func init() {
 	libpmfMutex.Lock()
 	defer libpmfMutex.Unlock()
@@ -70,8 +74,8 @@ func init() {
 	isLibpfmInitialized = true
 }
 
-func newCollector(cgroupPath string, events PerfEvents, numCores int, topology []info.Node) *collector {
-	collector := &collector{cgroupPath: cgroupPath, events: events, numCores: numCores, cpuFiles: map[int]group{}, uncore: NewUncoreCollector(cgroupPath, events, topology)}
+func newCollector(cgroupPath string, events PerfEvents, onlineCPUs []int, cpuToSocket map[int]int) *collector {
+	collector := &collector{cgroupPath: cgroupPath, events: events, onlineCPUs: onlineCPUs, cpuFiles: map[int]group{}, uncore: NewUncoreCollector(cgroupPath, events, cpuToSocket)}
 	mapEventsToCustomEvents(collector)
 	return collector
 }
@@ -182,14 +186,18 @@ func (c *collector) setup() error {
 	cgroupFd := int(cgroup.Fd())
 	for i, group := range c.events.Core.Events {
 		// CPUs file descriptors of group leader needed for perf_event_open.
-		leaderFileDescriptors := make([]int, c.numCores)
+		leaderFileDescriptors := make(map[int]int, len(c.onlineCPUs))
+		for _, cpu := range c.onlineCPUs {
+			leaderFileDescriptors[cpu] = groupLeaderFileDescriptor
+		}
+
 		for j, event := range group.events {
 			// First element is group leader.
 			isGroupLeader := j == 0
 			customEvent, ok := c.eventToCustomEvent[event]
 			if ok {
 				config := c.createConfigFromRawEvent(customEvent, isGroupLeader)
-				err := c.registerEvent(config, string(customEvent.Name), cgroupFd, i, leaderFileDescriptors, isGroupLeader)
+				leaderFileDescriptors, err = c.registerEvent(config, string(customEvent.Name), cgroupFd, i, leaderFileDescriptors)
 				if err != nil {
 					return err
 				}
@@ -198,7 +206,7 @@ func (c *collector) setup() error {
 				if err != nil {
 					return err
 				}
-				err = c.registerEvent(config, string(event), cgroupFd, i, leaderFileDescriptors, isGroupLeader)
+				leaderFileDescriptors, err = c.registerEvent(config, string(event), cgroupFd, i, leaderFileDescriptors)
 				if err != nil {
 					return err
 				}
@@ -235,39 +243,42 @@ func readPerfEventAttr(name string, perfEventAttrMemory unsafe.Pointer) error {
 	return nil
 }
 
-func (c *collector) registerEvent(config *unix.PerfEventAttr, name string, cgroup int, groupIndex int, leaderFileDescriptors []int, leader bool) error {
-	for cpu := 0; cpu < c.numCores; cpu++ {
-		var groupFD, pid, flags int
-		if leader {
-			// Leader should have this parameter set for -1.
-			groupFD = -1
+func (c *collector) registerEvent(config *unix.PerfEventAttr, name string, cgroup int, groupIndex int, leaderFileDescriptors map[int]int) (map[int]int, error) {
+	newLeaderFileDescriptors := make(map[int]int, len(c.onlineCPUs))
+	isGroupLeader := false
+	var pid, flags int
+	if len(leaderFileDescriptors) == len(c.onlineCPUs) {
+		if leaderFileDescriptors[0] == groupLeaderFileDescriptor {
+			isGroupLeader = true
 			pid = cgroup
 			flags = unix.PERF_FLAG_FD_CLOEXEC | unix.PERF_FLAG_PID_CGROUP
 		} else {
-			// If not leader, groupFd should be set to leaders perf file fd.
-			groupFD = leaderFileDescriptors[cpu]
 			pid = -1
 			flags = unix.PERF_FLAG_FD_CLOEXEC
 		}
+	} else {
+		return nil, fmt.Errorf("cannot decide if event should be leader: there is no leader file descriptors passed")
+	}
 
-		fd, err := unix.PerfEventOpen(config, pid, cpu, groupFD, flags)
+	for _, cpu := range c.onlineCPUs {
+		fd, err := unix.PerfEventOpen(config, pid, cpu, leaderFileDescriptors[cpu], flags)
 		if err != nil {
-			return fmt.Errorf("setting up perf event %#v failed: %q", config, err)
+			return nil, fmt.Errorf("setting up perf event %#v failed: %q", config, err)
 		}
 		perfFile := os.NewFile(uintptr(fd), name)
 		if perfFile == nil {
-			return fmt.Errorf("unable to create os.File from file descriptor %#v", fd)
+			return nil, fmt.Errorf("unable to create os.File from file descriptor %#v", fd)
 		}
 
 		c.addEventFile(groupIndex, name, cpu, perfFile)
 
 		// If group leader, save fd for others.
-		if leader {
-			leaderFileDescriptors[cpu] = fd
+		if isGroupLeader {
+			newLeaderFileDescriptors[cpu] = fd
 		}
 	}
 
-	return nil
+	return newLeaderFileDescriptors, nil
 }
 
 func (c *collector) addEventFile(index int, name string, cpu int, perfFile *os.File) {
