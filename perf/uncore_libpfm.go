@@ -193,41 +193,17 @@ func (c *uncoreCollector) setup(events PerfEvents, devicesPath string) error {
 			}
 		}
 
-		for j, event := range group.events {
-			isGroupLeader := j == 0
+		for _, event := range group.events {
 			eventName, _ := parseEventName(string(event))
 			customEvent, ok := c.eventToCustomEvent[event]
 			if ok {
-				klog.V(5).Infof("Setting up raw perf uncore event %#v", event)
-				for _, pmu := range groupPMUs[event] {
-					newEvent := CustomEvent{
-						Type:   pmu.typeOf,
-						Config: customEvent.Config,
-						Name:   customEvent.Name,
-					}
-					config := createPerfEventAttr(newEvent)
-					setAttributes(config, isGroupLeader)
-					err := c.registerEvent(config, string(newEvent.Name), pmu.cpus, pmu.name, leaderFileDescriptors, i)
-					if err != nil {
-						return err
-					}
-				}
+				err = c.setupRawEvent(customEvent, groupPMUs[event], i, leaderFileDescriptors)
 			} else {
-				// Register event for all memory controllers.
-				for _, pmu := range groupPMUs[event] {
-					config, err := c.createConfigFromEvent(eventName, isGroupLeader)
-					if err != nil {
-						return err
-					}
+				err = c.setupEvent(eventName, groupPMUs[event], i, leaderFileDescriptors)
+			}
 
-					config.Type = pmu.typeOf
-					err = c.registerEvent(config, eventName, pmu.cpus, pmu.name, leaderFileDescriptors, i)
-					if err != nil {
-						return err
-					}
-				}
-
-				//C.free(config)
+			if err != nil {
+				return err
 			}
 		}
 
@@ -235,7 +211,7 @@ func (c *uncoreCollector) setup(events PerfEvents, devicesPath string) error {
 		for _, pmuCPUs := range leaderFileDescriptors {
 			for _, fd := range pmuCPUs {
 				// Call only for used PMUs.
-				if fd != -1 {
+				if fd != groupLeaderFileDescriptor {
 					err = c.ioctlSetInt(fd, unix.PERF_EVENT_IOC_RESET, 0)
 					if err != nil {
 						return err
@@ -385,7 +361,7 @@ func (c *uncoreCollector) UpdateStats(stats *info.ContainerStats) error {
 	return nil
 }
 
-func (c *uncoreCollector) setupEvent(name string, pmus uncorePMUs, groupIndex int, leaderFileDescriptors map[string]map[uint32]int, isGroupLeader bool) error {
+func (c *uncoreCollector) setupEvent(name string, pmus uncorePMUs, groupIndex int, leaderFileDescriptors map[string]map[uint32]int) error {
 	if !isLibpfmInitialized {
 		return fmt.Errorf("libpfm4 is not initialized, cannot proceed with setting perf events up")
 	}
@@ -403,6 +379,7 @@ func (c *uncoreCollector) setupEvent(name string, pmus uncorePMUs, groupIndex in
 	// Register event for all memory controllers.
 	for _, pmu := range pmus {
 		perfEventAttr.Type = pmu.typeOf
+		isGroupLeader := leaderFileDescriptors[pmu.name][pmu.cpus[0]] == groupLeaderFileDescriptor
 		setAttributes(perfEventAttr, isGroupLeader)
 		err = c.registerEvent(perfEventAttr, name, pmu.cpus, pmu.name, leaderFileDescriptors, groupIndex)
 		if err != nil {
@@ -472,7 +449,7 @@ func (c *uncoreCollector) addEventFile(index int, name string, pmu string, cpu i
 	}
 }
 
-func (c *uncoreCollector) setupRawEvent(event *CustomEvent, pmus uncorePMUs, groupIndex int, leaderFileDescriptors map[string]map[uint32]int, isGroupLeader bool) error {
+func (c *uncoreCollector) setupRawEvent(event *CustomEvent, pmus uncorePMUs, groupIndex int, leaderFileDescriptors map[string]map[uint32]int) error {
 	klog.V(5).Infof("Setting up grouped raw perf uncore event %#v", event)
 
 	for _, pmu := range pmus {
@@ -482,6 +459,7 @@ func (c *uncoreCollector) setupRawEvent(event *CustomEvent, pmus uncorePMUs, gro
 			Name:   event.Name,
 		}
 		config := createPerfEventAttr(newEvent)
+		isGroupLeader := leaderFileDescriptors[pmu.name][pmu.cpus[0]] == groupLeaderFileDescriptor
 		setAttributes(config, isGroupLeader)
 		err := c.registerEvent(config, string(newEvent.Name), pmu.cpus, pmu.name, leaderFileDescriptors, groupIndex)
 		if err != nil {
@@ -515,24 +493,4 @@ func readPerfUncoreStat(file readerCloser, group group, cpu int, pmu string, cpu
 	}
 
 	return perfUncoreStats, nil
-}
-
-func (c *uncoreCollector) createConfigFromEvent(event string, isGroupLeader bool) (*unix.PerfEventAttr, error) {
-	if !isLibpfmInitialized {
-		return nil, fmt.Errorf("libpfm4 is not initialized, cannot proceed with setting perf events up")
-	}
-
-	klog.V(5).Infof("Setting up grouped uncore perf event %s", event)
-
-	perfEventAttrMemory := C.malloc(C.ulong(unsafe.Sizeof(unix.PerfEventAttr{})))
-	//defer C.free(perfEventAttrMemory)
-	err := readPerfEventAttr(event, perfEventAttrMemory)
-	if err != nil {
-		return nil, err
-	}
-	config := (*unix.PerfEventAttr)(perfEventAttrMemory)
-	setAttributes(config, isGroupLeader)
-	klog.V(5).Infof("perf_event_attr: %#v", config)
-
-	return config, nil
 }
