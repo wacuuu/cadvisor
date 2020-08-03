@@ -55,6 +55,7 @@ const (
 	pmuCpumaskFilename = "cpumask"
 	systemDevicesPath  = "/sys/devices"
 	rootPerfEventPath  = "/sys/fs/cgroup/perf_event"
+	uncorePID          = -1
 )
 
 func getPMU(pmus uncorePMUs, gotType uint32) (*pmu, error) {
@@ -381,7 +382,7 @@ func (c *uncoreCollector) setupEvent(name string, pmus uncorePMUs, groupIndex in
 		perfEventAttr.Type = pmu.typeOf
 		isGroupLeader := leaderFileDescriptors[pmu.name][pmu.cpus[0]] == groupLeaderFileDescriptor
 		setAttributes(perfEventAttr, isGroupLeader)
-		err = c.registerEvent(eventInfo{name, perfEventAttr, -1, groupIndex}, pmu, leaderFileDescriptors)
+		err = c.registerEvent(eventInfo{name, perfEventAttr, uncorePID, groupIndex}, pmu, leaderFileDescriptors)
 		if err != nil {
 			return err
 		}
@@ -461,7 +462,7 @@ func (c *uncoreCollector) setupRawEvent(event *CustomEvent, pmus uncorePMUs, gro
 		config := createPerfEventAttr(newEvent)
 		isGroupLeader := leaderFileDescriptors[pmu.name][pmu.cpus[0]] == groupLeaderFileDescriptor
 		setAttributes(config, isGroupLeader)
-		err := c.registerEvent(eventInfo{string(newEvent.Name), config, -1, groupIndex}, pmu, leaderFileDescriptors)
+		err := c.registerEvent(eventInfo{string(newEvent.Name), config, uncorePID, groupIndex}, pmu, leaderFileDescriptors)
 		if err != nil {
 			return err
 		}
