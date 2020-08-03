@@ -529,9 +529,7 @@ func GetOnlineCPUs(topology []info.Node) []int {
 	onlineCPUs := make([]int, 0)
 	for _, node := range topology {
 		for _, core := range node.Cores {
-			for _, th := range core.Threads {
-				onlineCPUs = append(onlineCPUs, th)
-			}
+			onlineCPUs = append(onlineCPUs, core.Threads...)
 		}
 	}
 	return onlineCPUs
