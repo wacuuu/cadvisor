@@ -187,7 +187,7 @@ func TestNewCollector(t *testing.T) {
 				Name:   "event_2",
 			}},
 		},
-	}, []int{0, 1, 2, 3}, []info.Node{})
+	}, []int{0, 1, 2, 3}, map[int]int{})
 	assert.Len(t, perfCollector.eventToCustomEvent, 1)
 	assert.Nil(t, perfCollector.eventToCustomEvent[Event("event_1")])
 	assert.Same(t, &perfCollector.events.Core.CustomEvents[0], perfCollector.eventToCustomEvent[Event("event_2")])
