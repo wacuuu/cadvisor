@@ -197,7 +197,7 @@ func (c *collector) setup() error {
 			customEvent, ok := c.eventToCustomEvent[event]
 			if ok {
 				config := c.createConfigFromRawEvent(customEvent, isGroupLeader)
-				leaderFileDescriptors, err = c.registerEvent(config, string(customEvent.Name), cgroupFd, i, leaderFileDescriptors)
+				leaderFileDescriptors, err = c.registerEvent(eventInfo{string(customEvent.Name), config, cgroupFd, i}, leaderFileDescriptors)
 				if err != nil {
 					return err
 				}
@@ -206,7 +206,7 @@ func (c *collector) setup() error {
 				if err != nil {
 					return err
 				}
-				leaderFileDescriptors, err = c.registerEvent(config, string(event), cgroupFd, i, leaderFileDescriptors)
+				leaderFileDescriptors, err = c.registerEvent(eventInfo{string(event), config, cgroupFd, i}, leaderFileDescriptors)
 				if err != nil {
 					return err
 				}
@@ -243,14 +243,21 @@ func readPerfEventAttr(name string, perfEventAttrMemory unsafe.Pointer) error {
 	return nil
 }
 
-func (c *collector) registerEvent(config *unix.PerfEventAttr, name string, cgroup int, groupIndex int, leaderFileDescriptors map[int]int) (map[int]int, error) {
+type eventInfo struct {
+	name       string
+	config     *unix.PerfEventAttr
+	cgroup     int
+	groupIndex int
+}
+
+func (c *collector) registerEvent(event eventInfo, leaderFileDescriptors map[int]int) (map[int]int, error) {
 	newLeaderFileDescriptors := make(map[int]int, len(c.onlineCPUs))
 	isGroupLeader := false
 	var pid, flags int
 	if len(leaderFileDescriptors) == len(c.onlineCPUs) {
 		if leaderFileDescriptors[0] == groupLeaderFileDescriptor {
 			isGroupLeader = true
-			pid = cgroup
+			pid = event.cgroup
 			flags = unix.PERF_FLAG_FD_CLOEXEC | unix.PERF_FLAG_PID_CGROUP
 		} else {
 			pid = -1
@@ -261,16 +268,16 @@ func (c *collector) registerEvent(config *unix.PerfEventAttr, name string, cgrou
 	}
 
 	for _, cpu := range c.onlineCPUs {
-		fd, err := unix.PerfEventOpen(config, pid, cpu, leaderFileDescriptors[cpu], flags)
+		fd, err := unix.PerfEventOpen(event.config, pid, cpu, leaderFileDescriptors[cpu], flags)
 		if err != nil {
-			return nil, fmt.Errorf("setting up perf event %#v failed: %q", config, err)
+			return nil, fmt.Errorf("setting up perf event %#v failed: %q", event.config, err)
 		}
-		perfFile := os.NewFile(uintptr(fd), name)
+		perfFile := os.NewFile(uintptr(fd), event.name)
 		if perfFile == nil {
 			return nil, fmt.Errorf("unable to create os.File from file descriptor %#v", fd)
 		}
 
-		c.addEventFile(groupIndex, name, cpu, perfFile)
+		c.addEventFile(event.groupIndex, event.name, cpu, perfFile)
 
 		// If group leader, save fd for others.
 		if isGroupLeader {
@@ -389,7 +396,7 @@ func mapEventsToCustomEvents(collector *collector) {
 }
 
 func (c *collector) createConfigFromRawEvent(event *CustomEvent, isGroupLeader bool) *unix.PerfEventAttr {
-	klog.V(5).Infof("Setting up grouped raw perf event %#v", event)
+	klog.V(5).Infof("Setting up raw perf event %#v", event)
 
 	config := createPerfEventAttr(*event)
 	setAttributes(config, isGroupLeader)
@@ -398,7 +405,7 @@ func (c *collector) createConfigFromRawEvent(event *CustomEvent, isGroupLeader b
 }
 
 func (c *collector) createConfigFromEvent(event Event, isGroupLeader bool) (*unix.PerfEventAttr, error) {
-	klog.V(5).Infof("Setting up grouped perf event %s", string(event))
+	klog.V(5).Infof("Setting up perf event %s", string(event))
 
 	perfEventAttrMemory := C.malloc(C.ulong(unsafe.Sizeof(unix.PerfEventAttr{})))
 	defer C.free(perfEventAttrMemory)
