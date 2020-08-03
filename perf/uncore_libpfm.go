@@ -381,7 +381,7 @@ func (c *uncoreCollector) setupEvent(name string, pmus uncorePMUs, groupIndex in
 		perfEventAttr.Type = pmu.typeOf
 		isGroupLeader := leaderFileDescriptors[pmu.name][pmu.cpus[0]] == groupLeaderFileDescriptor
 		setAttributes(perfEventAttr, isGroupLeader)
-		err = c.registerEvent(perfEventAttr, name, pmu, leaderFileDescriptors, groupIndex)
+		err = c.registerEvent(eventInfo{name, perfEventAttr, -1, groupIndex}, pmu, leaderFileDescriptors)
 		if err != nil {
 			return err
 		}
@@ -390,19 +390,19 @@ func (c *uncoreCollector) setupEvent(name string, pmus uncorePMUs, groupIndex in
 	return nil
 }
 
-func (c *uncoreCollector) registerEvent(config *unix.PerfEventAttr, name string, pmu pmu, leaderFileDescriptors map[string]map[uint32]int, groupIndex int) error {
+func (c *uncoreCollector) registerEvent(eventInfo eventInfo, pmu pmu, leaderFileDescriptors map[string]map[uint32]int) error {
 	for _, cpu := range pmu.cpus {
-		groupFd, pid, flags := leaderFileDescriptors[pmu.name][cpu], -1, 0
-		fd, err := c.perfEventOpen(config, pid, int(cpu), groupFd, flags)
+		groupFd, flags := leaderFileDescriptors[pmu.name][cpu], 0
+		fd, err := c.perfEventOpen(eventInfo.config, eventInfo.pid, int(cpu), groupFd, flags)
 		if err != nil {
-			return fmt.Errorf("setting up perf event %#v failed: %q | (pmu: %q, groupFd: %d, cpu: %d)", config, err, pmu, groupFd, cpu)
+			return fmt.Errorf("setting up perf event %#v failed: %q | (pmu: %q, groupFd: %d, cpu: %d)", eventInfo.config, err, pmu, groupFd, cpu)
 		}
-		perfFile := os.NewFile(uintptr(fd), name)
+		perfFile := os.NewFile(uintptr(fd), eventInfo.name)
 		if perfFile == nil {
 			return fmt.Errorf("unable to create os.File from file descriptor %#v", fd)
 		}
 
-		c.addEventFile(groupIndex, name, pmu.name, int(cpu), perfFile)
+		c.addEventFile(eventInfo.groupIndex, eventInfo.name, pmu.name, int(cpu), perfFile)
 
 		// If group leader, save fd for others.
 		if leaderFileDescriptors[pmu.name][cpu] == groupLeaderFileDescriptor {
@@ -461,7 +461,7 @@ func (c *uncoreCollector) setupRawEvent(event *CustomEvent, pmus uncorePMUs, gro
 		config := createPerfEventAttr(newEvent)
 		isGroupLeader := leaderFileDescriptors[pmu.name][pmu.cpus[0]] == groupLeaderFileDescriptor
 		setAttributes(config, isGroupLeader)
-		err := c.registerEvent(config, string(newEvent.Name), pmu, leaderFileDescriptors, groupIndex)
+		err := c.registerEvent(eventInfo{string(newEvent.Name), config, -1, groupIndex}, pmu, leaderFileDescriptors)
 		if err != nil {
 			return err
 		}

@@ -246,7 +246,7 @@ func readPerfEventAttr(name string, perfEventAttrMemory unsafe.Pointer) error {
 type eventInfo struct {
 	name       string
 	config     *unix.PerfEventAttr
-	cgroup     int
+	pid        int
 	groupIndex int
 }
 
@@ -257,7 +257,7 @@ func (c *collector) registerEvent(event eventInfo, leaderFileDescriptors map[int
 	if len(leaderFileDescriptors) == len(c.onlineCPUs) {
 		if leaderFileDescriptors[0] == groupLeaderFileDescriptor {
 			isGroupLeader = true
-			pid = event.cgroup
+			pid = event.pid
 			flags = unix.PERF_FLAG_FD_CLOEXEC | unix.PERF_FLAG_PID_CGROUP
 		} else {
 			pid = -1
