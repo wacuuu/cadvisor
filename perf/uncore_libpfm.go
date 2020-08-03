@@ -366,7 +366,7 @@ func (c *uncoreCollector) setupEvent(name string, pmus uncorePMUs, groupIndex in
 		return fmt.Errorf("libpfm4 is not initialized, cannot proceed with setting perf events up")
 	}
 
-	klog.V(5).Infof("Setting up grouped uncore perf event %s", name)
+	klog.V(5).Infof("Setting up uncore perf event %s", name)
 
 	perfEventAttrMemory := C.malloc(C.ulong(unsafe.Sizeof(unix.PerfEventAttr{})))
 	defer C.free(perfEventAttrMemory)
@@ -450,7 +450,7 @@ func (c *uncoreCollector) addEventFile(index int, name string, pmu string, cpu i
 }
 
 func (c *uncoreCollector) setupRawEvent(event *CustomEvent, pmus uncorePMUs, groupIndex int, leaderFileDescriptors map[string]map[uint32]int) error {
-	klog.V(5).Infof("Setting up grouped raw perf uncore event %#v", event)
+	klog.V(5).Infof("Setting up raw perf uncore event %#v", event)
 
 	for _, pmu := range pmus {
 		newEvent := CustomEvent{
