@@ -381,7 +381,7 @@ func (c *uncoreCollector) setupEvent(name string, pmus uncorePMUs, groupIndex in
 		config.Type = pmu.typeOf
 		isGroupLeader := leaderFileDescriptors[pmu.name][pmu.cpus[0]] == groupLeaderFileDescriptor
 		setAttributes(config, isGroupLeader)
-		err = c.registerEvent(eventInfo{name, config, uncorePID, groupIndex}, pmu, leaderFileDescriptors)
+		leaderFileDescriptors[pmu.name], err = c.registerEvent(eventInfo{name, config, uncorePID, groupIndex}, pmu, leaderFileDescriptors[pmu.name])
 		if err != nil {
 			return err
 		}
@@ -393,27 +393,35 @@ func (c *uncoreCollector) setupEvent(name string, pmus uncorePMUs, groupIndex in
 	return nil
 }
 
-func (c *uncoreCollector) registerEvent(eventInfo eventInfo, pmu pmu, leaderFileDescriptors map[string]map[uint32]int) error {
+func (c *uncoreCollector) registerEvent(eventInfo eventInfo, pmu pmu, leaderFileDescriptors map[uint32]int) (map[uint32]int, error) {
+	newLeaderFileDescriptors := make(map[uint32]int)
+	isGroupLeader := false
 	for _, cpu := range pmu.cpus {
-		groupFd, flags := leaderFileDescriptors[pmu.name][cpu], 0
+		groupFd, flags := leaderFileDescriptors[cpu], 0
 		fd, err := c.perfEventOpen(eventInfo.config, eventInfo.pid, int(cpu), groupFd, flags)
 		if err != nil {
-			return fmt.Errorf("setting up perf event %#v failed: %q | (pmu: %q, groupFd: %d, cpu: %d)", eventInfo.config, err, pmu, groupFd, cpu)
+			return nil, fmt.Errorf("setting up perf event %#v failed: %q | (pmu: %q, groupFd: %d, cpu: %d)", eventInfo.config, err, pmu, groupFd, cpu)
 		}
 		perfFile := os.NewFile(uintptr(fd), eventInfo.name)
 		if perfFile == nil {
-			return fmt.Errorf("unable to create os.File from file descriptor %#v", fd)
+			return nil, fmt.Errorf("unable to create os.File from file descriptor %#v", fd)
 		}
 
 		c.addEventFile(eventInfo.groupIndex, eventInfo.name, pmu.name, int(cpu), perfFile)
 
 		// If group leader, save fd for others.
-		if leaderFileDescriptors[pmu.name][cpu] == groupLeaderFileDescriptor {
-			leaderFileDescriptors[pmu.name][cpu] = fd
+		if leaderFileDescriptors[cpu] == groupLeaderFileDescriptor {
+			newLeaderFileDescriptors[cpu] = fd
+			isGroupLeader = true
 		}
 	}
 
-	return nil
+	if isGroupLeader {
+		return newLeaderFileDescriptors, nil
+	} else {
+		return leaderFileDescriptors, nil
+	}
+
 }
 
 func (c *uncoreCollector) addEventFile(index int, name string, pmu string, cpu int, perfFile *os.File) {
@@ -464,7 +472,8 @@ func (c *uncoreCollector) setupRawEvent(event *CustomEvent, pmus uncorePMUs, gro
 		config := createPerfEventAttr(newEvent)
 		isGroupLeader := leaderFileDescriptors[pmu.name][pmu.cpus[0]] == groupLeaderFileDescriptor
 		setAttributes(config, isGroupLeader)
-		err := c.registerEvent(eventInfo{string(newEvent.Name), config, uncorePID, groupIndex}, pmu, leaderFileDescriptors)
+		var err error
+		leaderFileDescriptors[pmu.name], err = c.registerEvent(eventInfo{string(newEvent.Name), config, uncorePID, groupIndex}, pmu, leaderFileDescriptors[pmu.name])
 		if err != nil {
 			return err
 		}
