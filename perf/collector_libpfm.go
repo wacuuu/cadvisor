@@ -210,6 +210,8 @@ func (c *collector) setup() error {
 				if err != nil {
 					return err
 				}
+				// Clean memory allocated by C code.
+				C.free(unsafe.Pointer(config))
 			}
 		}
 
@@ -401,6 +403,8 @@ func (c *collector) createConfigFromRawEvent(event *CustomEvent, isGroupLeader b
 	config := createPerfEventAttr(*event)
 	setAttributes(config, isGroupLeader)
 
+	klog.V(5).Infof("perf_event_attr: %#v", config)
+
 	return config
 }
 
@@ -408,9 +412,9 @@ func (c *collector) createConfigFromEvent(event Event, isGroupLeader bool) (*uni
 	klog.V(5).Infof("Setting up perf event %s", string(event))
 
 	perfEventAttrMemory := C.malloc(C.ulong(unsafe.Sizeof(unix.PerfEventAttr{})))
-	defer C.free(perfEventAttrMemory)
 	err := readPerfEventAttr(string(event), perfEventAttrMemory)
 	if err != nil {
+		C.free(perfEventAttrMemory)
 		return nil, err
 	}
 	config := (*unix.PerfEventAttr)(perfEventAttrMemory)
@@ -418,5 +422,6 @@ func (c *collector) createConfigFromEvent(event Event, isGroupLeader bool) (*uni
 	setAttributes(config, isGroupLeader)
 
 	klog.V(5).Infof("perf_event_attr: %#v", config)
+
 	return config, nil
 }

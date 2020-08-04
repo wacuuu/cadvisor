@@ -370,23 +370,25 @@ func (c *uncoreCollector) setupEvent(name string, pmus uncorePMUs, groupIndex in
 	klog.V(5).Infof("Setting up uncore perf event %s", name)
 
 	perfEventAttrMemory := C.malloc(C.ulong(unsafe.Sizeof(unix.PerfEventAttr{})))
-	defer C.free(perfEventAttrMemory)
 	err := readPerfEventAttr(name, perfEventAttrMemory)
 	if err != nil {
 		return err
 	}
-	perfEventAttr := (*unix.PerfEventAttr)(perfEventAttrMemory)
+	config := (*unix.PerfEventAttr)(perfEventAttrMemory)
 
 	// Register event for all memory controllers.
 	for _, pmu := range pmus {
-		perfEventAttr.Type = pmu.typeOf
+		config.Type = pmu.typeOf
 		isGroupLeader := leaderFileDescriptors[pmu.name][pmu.cpus[0]] == groupLeaderFileDescriptor
-		setAttributes(perfEventAttr, isGroupLeader)
-		err = c.registerEvent(eventInfo{name, perfEventAttr, uncorePID, groupIndex}, pmu, leaderFileDescriptors)
+		setAttributes(config, isGroupLeader)
+		err = c.registerEvent(eventInfo{name, config, uncorePID, groupIndex}, pmu, leaderFileDescriptors)
 		if err != nil {
 			return err
 		}
 	}
+
+	// Clean memory allocated by C code.
+	C.free(unsafe.Pointer(config))
 
 	return nil
 }
