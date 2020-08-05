@@ -18,13 +18,14 @@
 package perf
 
 import (
-	"golang.org/x/sys/unix"
 	"bytes"
 	"encoding/binary"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/stretchr/testify/assert"
 
@@ -258,7 +259,7 @@ func TestReadPerfUncoreStat(t *testing.T) {
 	file := GroupReadFormat{
 		TimeEnabled: 0,
 		TimeRunning: 1,
-		Nr: 1,
+		Nr:          1,
 	}
 
 	valuesFile := Values{
