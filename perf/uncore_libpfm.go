@@ -23,8 +23,6 @@ package perf
 // #include <stdlib.h>
 import "C"
 import (
-	"bytes"
-	"encoding/binary"
 	"fmt"
 	"io/ioutil"
 	"os"
