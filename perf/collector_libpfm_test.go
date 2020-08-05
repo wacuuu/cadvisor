@@ -129,16 +129,20 @@ func TestCollector_UpdateStats(t *testing.T) {
 		Cpu: 0,
 	})
 	assert.Contains(t, stats.PerfStats, info.PerfStat{
-		ScalingRatio: 1.0,
-		Value:        123456,
-		Name:         "cache-misses",
-		Cpu:          0,
+		PerfValue: info.PerfValue{
+			ScalingRatio: 1.0,
+			Value:        123456,
+			Name:         "cache-misses",
+		},
+		Cpu: 0,
 	})
 	assert.Contains(t, stats.PerfStats, info.PerfStat{
-		ScalingRatio: 1.0,
-		Value:        654321,
-		Name:         "cache-references",
-		Cpu:          0,
+		PerfValue: info.PerfValue{
+			ScalingRatio: 1.0,
+			Value:        654321,
+			Name:         "cache-references",
+		},
+		Cpu: 0,
 	})
 }
 
@@ -193,164 +197,192 @@ func TestNewCollector(t *testing.T) {
 	assert.Same(t, &perfCollector.events.Core.CustomEvents[0], perfCollector.eventToCustomEvent[Event("event_2")])
 }
 
-var readPerfStatCases = []struct {
-	test     string
-	file     ReadFormat
-	name     string
-	cpu      int
-	perfStat info.PerfStat
-	err      error
+var readGroupPerfStatCases = []struct {
+	test       string
+	file       GroupReadFormat
+	valuesFile Values
+	name       string
+	cpu        int
+	perfStat   []info.PerfStat
+	err        error
 }{
 	{
 		test: "no scaling",
-		file: ReadFormat{
-			Value:       5,
+		file: GroupReadFormat{
 			TimeEnabled: 0,
 			TimeRunning: 0,
-			ID:          0,
+			Nr:          1,
+		},
+		valuesFile: Values{
+			Value: 5,
+			ID:    0,
 		},
 		name: "some metric",
 		cpu:  1,
-		perfStat: info.PerfStat{
+		perfStat: []info.PerfStat{{
 			PerfValue: info.PerfValue{
 				ScalingRatio: 1,
 				Value:        5,
 				Name:         "some metric",
 			},
 			Cpu: 1,
-		},
+		}},
 		err: nil,
 	},
 	{
 		test: "no scaling - TimeEnabled = 0",
-		file: ReadFormat{
-			Value:       5,
+		file: GroupReadFormat{
 			TimeEnabled: 0,
 			TimeRunning: 1,
-			ID:          0,
+			Nr:          1,
+		},
+		valuesFile: Values{
+			Value: 5,
+			ID:    0,
 		},
 		name: "some metric",
 		cpu:  1,
-		perfStat: info.PerfStat{
+		perfStat: []info.PerfStat{{
 			PerfValue: info.PerfValue{
 				ScalingRatio: 1,
 				Value:        5,
 				Name:         "some metric",
 			},
 			Cpu: 1,
-		},
+		}},
 		err: nil,
 	},
 	{
 		test: "scaling - 0.5",
-		file: ReadFormat{
-			Value:       4,
+		file: GroupReadFormat{
 			TimeEnabled: 4,
 			TimeRunning: 2,
-			ID:          0,
+			Nr:          1,
+		},
+		valuesFile: Values{
+			Value: 4,
+			ID:    0,
 		},
 		name: "some metric",
 		cpu:  2,
-		perfStat: info.PerfStat{
+		perfStat: []info.PerfStat{{
 			PerfValue: info.PerfValue{
 				ScalingRatio: 0.5,
 				Value:        8,
 				Name:         "some metric",
 			},
 			Cpu: 2,
-		},
+		}},
 		err: nil,
 	},
 	{
 		test: "scaling - 0 (TimeEnabled = 1, TimeRunning = 0)",
-		file: ReadFormat{
-			Value:       4,
+		file: GroupReadFormat{
 			TimeEnabled: 1,
 			TimeRunning: 0,
-			ID:          0,
+			Nr:          1,
+		},
+		valuesFile: Values{
+			Value: 4,
+			ID:    0,
 		},
 		name: "some metric",
 		cpu:  3,
-		perfStat: info.PerfStat{
+		perfStat: []info.PerfStat{{
 			PerfValue: info.PerfValue{
 				ScalingRatio: 1.0,
 				Value:        4,
 				Name:         "some metric",
 			},
 			Cpu: 3,
-		},
+		}},
 		err: nil,
 	},
 	{
 		test: "scaling - 0 (TimeEnabled = 0, TimeRunning = 1)",
-		file: ReadFormat{
-			Value:       4,
+		file: GroupReadFormat{
 			TimeEnabled: 0,
 			TimeRunning: 1,
-			ID:          0,
+			Nr:          1,
+		},
+		valuesFile: Values{
+			Value: 4,
+			ID:    0,
 		},
 		name: "some metric",
 		cpu:  3,
-		perfStat: info.PerfStat{
+		perfStat: []info.PerfStat{{
 			PerfValue: info.PerfValue{
 				ScalingRatio: 1.0,
 				Value:        4,
 				Name:         "some metric",
 			},
 			Cpu: 3,
-		},
+		}},
 		err: nil,
 	},
 	{
 		test: "zeros, zeros everywhere",
-		file: ReadFormat{
-			Value:       0,
+		file: GroupReadFormat{
 			TimeEnabled: 0,
 			TimeRunning: 0,
-			ID:          0,
+			Nr:          1,
+		},
+		valuesFile: Values{
+			Value: 0,
+			ID:    0,
 		},
 		name: "some metric",
 		cpu:  4,
-		perfStat: info.PerfStat{
+		perfStat: []info.PerfStat{{
 			PerfValue: info.PerfValue{
 				ScalingRatio: 1.0,
 				Value:        0,
 				Name:         "some metric",
 			},
 			Cpu: 4,
-		},
+		}},
 		err: nil,
 	},
 	{
 		test: "non-zero TimeRunning",
-		file: ReadFormat{
-			Value:       0,
+		file: GroupReadFormat{
 			TimeEnabled: 0,
 			TimeRunning: 3,
-			ID:          0,
+			Nr:          1,
+		},
+		valuesFile: Values{
+			Value: 0,
+			ID:    0,
 		},
 		name: "some metric",
 		cpu:  4,
-		perfStat: info.PerfStat{
+		perfStat: []info.PerfStat{{
 			PerfValue: info.PerfValue{
 				ScalingRatio: 1.0,
 				Value:        0,
 				Name:         "some metric",
 			},
 			Cpu: 4,
-		},
+		}},
 		err: nil,
 	},
 }
 
 func TestReadPerfStat(t *testing.T) {
-	for _, test := range readPerfStatCases {
+	for _, test := range readGroupPerfStatCases {
 		t.Run(test.test, func(tt *testing.T) {
 			buf := &buffer{bytes.NewBuffer([]byte{})}
 			err := binary.Write(buf, binary.LittleEndian, test.file)
 			assert.NoError(tt, err)
-			stat, err := readPerfStat(buf, test.name, test.cpu)
-			assert.Equal(tt, test.perfStat, *stat)
+			err = binary.Write(buf, binary.LittleEndian, test.valuesFile)
+			assert.NoError(tt, err)
+			stat, err := readGroupPerfStat(buf, group{
+				cpuFiles:   nil,
+				names:      []string{test.name},
+				leaderName: test.name,
+			}, test.cpu, "/")
+			assert.Equal(tt, test.perfStat, stat)
 			assert.Equal(tt, test.err, err)
 		})
 	}

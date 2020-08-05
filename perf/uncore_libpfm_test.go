@@ -267,7 +267,7 @@ func TestReadPerfUncoreStat(t *testing.T) {
 		ID:    0,
 	}
 
-	expectedStat := v1.PerfUncoreStat{
+	expectedStat := []v1.PerfUncoreStat{{
 		PerfValue: v1.PerfValue{
 			ScalingRatio: 1,
 			Value:        4,
@@ -275,16 +275,11 @@ func TestReadPerfUncoreStat(t *testing.T) {
 		},
 		Socket: 0,
 		PMU:    "bar",
-	}
-	topology := []v1.Node{{
-		Id:        0,
-		HugePages: nil,
-		Cores: []v1.Core{{
-			Id:       1,
-			Threads:  []int{1, 2},
-			SocketID: 0,
-		}},
 	}}
+	cpuToSocket := map[int]int{
+		1: 0,
+		2: 0,
+	}
 
 	buf := &buffer{bytes.NewBuffer([]byte{})}
 	err := binary.Write(buf, binary.LittleEndian, file)
@@ -296,7 +291,7 @@ func TestReadPerfUncoreStat(t *testing.T) {
 		cpuFiles:   nil,
 		names:      []string{"foo"},
 		leaderName: "foo",
-	}, 1, "bar", topology)
+	}, 1, "bar", cpuToSocket)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedStat, stat)
 }
