@@ -19,11 +19,11 @@ package perf
 
 import (
 	"fmt"
-	"github.com/google/cadvisor/utils/sysinfo"
 	"os"
 
 	info "github.com/google/cadvisor/info/v1"
 	"github.com/google/cadvisor/stats"
+	"github.com/google/cadvisor/utils/sysinfo"
 )
 
 type manager struct {
