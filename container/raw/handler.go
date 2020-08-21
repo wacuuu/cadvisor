@@ -48,7 +48,7 @@ func isRootCgroup(name string) bool {
 	return name == "/"
 }
 
-func newRawContainerHandler(name string, cgroupSubsystems *libcontainer.CgroupSubsystems, machineInfoFactory info.MachineInfoFactory, fsInfo fs.FsInfo, watcher *common.InotifyWatcher, rootFs string, includedMetrics container.MetricSet) (container.ContainerHandler, error) {
+func newRawContainerHandler(name string, cgroupSubsystems *libcontainer.CgroupSubsystems, machineInfoFactory info.MachineInfoFactory, fsInfo fs.FsInfo, watcher *common.InotifyWatcher, rootFs string, includedMetrics container.MetricSet, housekeepingInterval) (container.ContainerHandler, error) {
 	cHints, err := common.GetContainerHintsFromFile(*common.ArgContainerHints)
 	if err != nil {
 		return nil, err
@@ -77,7 +77,7 @@ func newRawContainerHandler(name string, cgroupSubsystems *libcontainer.CgroupSu
 		delete(cgroupPaths, "pids")
 	}
 
-	handler := libcontainer.NewHandler(cgroupManager, rootFs, pid, includedMetrics)
+	handler := libcontainer.NewHandler(cgroupManager, rootFs, pid, includedMetrics, housekeepingInterval)
 
 	return &rawContainerHandler{
 		name:                name,

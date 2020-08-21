@@ -51,22 +51,24 @@ var (
 )
 
 type Handler struct {
-	cgroupManager    cgroups.Manager
-	rootFs           string
-	pid              int
-	includedMetrics  container.MetricSet
-	pidMetricsCache  map[int]*info.CpuSchedstat
-	cycles           uint64
-	referencedMemory uint64
+	cgroupManager        cgroups.Manager
+	rootFs               string
+	pid                  int
+	includedMetrics      container.MetricSet
+	pidMetricsCache      map[int]*info.CpuSchedstat
+	cycles               uint64
+	referencedMemory     uint64
+	housekeepingInterval time.Duration
 }
 
 func NewHandler(cgroupManager cgroups.Manager, rootFs string, pid int, includedMetrics container.MetricSet) *Handler {
 	return &Handler{
-		cgroupManager:   cgroupManager,
-		rootFs:          rootFs,
-		pid:             pid,
-		includedMetrics: includedMetrics,
-		pidMetricsCache: make(map[int]*info.CpuSchedstat),
+		cgroupManager:        cgroupManager,
+		rootFs:               rootFs,
+		pid:                  pid,
+		includedMetrics:      includedMetrics,
+		pidMetricsCache:      make(map[int]*info.CpuSchedstat),
+		housekeepingInterval: container.info.HousekeepingInterval,
 	}
 }
 
@@ -764,7 +766,7 @@ func (h *Handler) ReadSmaps() error {
 	pids, err := h.cgroupManager.GetPids()
 	for {
 		h.referencedMemory, err = referencedBytesStat(pids, h.cycles, *referencedResetInterval)
-		time.Sleep(10 * time.Second)
+		time.Sleep(h.housekeepingInterval * time.Second)
 	}
 	return err
 }
