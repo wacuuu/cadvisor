@@ -2,26 +2,41 @@ FROM centos:7 AS build
 
 RUN yum -y update --disablerepo=extras && yum -y install device-mapper findutils zfs build-base linux-headers bash git wget make gcc
 
-RUN wget https://golang.org/dl/go1.14.4.linux-amd64.tar.gz && \
+RUN yum -y groupinstall 'Development Tools'
+
+
+RUN wget -q https://golang.org/dl/go1.14.4.linux-amd64.tar.gz && \
   tar -C /usr/local -xzf go1.14.4.linux-amd64.tar.gz && \
   rm -f go1.14.4.linux-amd64.tar.gz
 
 ENV PATH=$PATH::/usr/local/go/bin
 
-RUN wget https://sourceforge.net/projects/perfmon2/files/libpfm4/libpfm-4.10.1.tar.gz && \
+RUN wget -q https://sourceforge.net/projects/perfmon2/files/libpfm4/libpfm-4.10.1.tar.gz && \
   tar -xzf libpfm-4.10.1.tar.gz && \
   rm libpfm-4.10.1.tar.gz
+
+RUN wget -q https://github.com/intel/ipmctl/archive/v02.00.00.3719.tar.gz && \
+    tar -xzf v02.00.00.3719.tar.gz && \
+    rm v02.00.00.3719.tar.gz
 
 RUN export DBG="-g -Wall" && \
   make -e -C libpfm-4.10.1 && \
   make install -C libpfm-4.10.1
 
 RUN cd /etc/yum.repos.d/ && \
-  wget https://copr.fedorainfracloud.org/coprs/jhli/ipmctl/repo/epel-7/jhli-ipmctl-epel-7.repo && \
-  wget https://copr.fedorainfracloud.org/coprs/jhli/safeclib/repo/epel-7/jhli-safeclib-epel-7.repo && \
+  wget -q https://copr.fedorainfracloud.org/coprs/jhli/ipmctl/repo/epel-7/jhli-ipmctl-epel-7.repo && \
+  wget -q https://copr.fedorainfracloud.org/coprs/jhli/safeclib/repo/epel-7/jhli-safeclib-epel-7.repo && \
   yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \
-  yum install --enablerepo="rhel-*-optional-rpms,rhel-*-extras-rpms,rhel-ha-for-rhel-*-server-rpms" -y ndctl ndctl-libs ndctl-devel libsafec rubygem-asciidoctor && \
-  yum install -y ipmctl ipmctl-devel
+  yum install --enablerepo="rhel-*-optional-rpms,rhel-*-extras-rpms,rhel-ha-for-rhel-*-server-rpms" -y ndctl ndctl-libs ndctl-devel libsafec rubygem-asciidoctor
+
+RUN yum -y install cmake
+
+RUN cd ipmctl-02.00.00.3719 && \
+    mkdir output && cd output && \
+    cmake -DRELEASE=ON -DCMAKE_INSTALL_PREFIX=/ .. && \
+    make -j all && \
+    make install
+
 
 
 ADD . /go/src/github.com/google/cadvisor
