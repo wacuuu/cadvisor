@@ -58,6 +58,18 @@ func TestMemoryNumaMetricsAreDisabledByDefault(t *testing.T) {
 	assert.True(t, ignoreMetrics.Has(container.MemoryNumaMetrics))
 }
 
+func TestNodesNumaStatMetricsAreDisabledByDefault(t *testing.T) {
+	assert.True(t, ignoreMetrics.Has(container.NodesNumaStatMetrics))
+	flag.Parse()
+	assert.True(t, ignoreMetrics.Has(container.NodesNumaStatMetrics))
+}
+
+func TestNodesVmStatMetricsAreDisabledByDefault(t *testing.T) {
+	assert.True(t, ignoreMetrics.Has(container.NodesVmStatMetrics))
+	flag.Parse()
+	assert.True(t, ignoreMetrics.Has(container.NodesVmStatMetrics))
+}
+
 func TestIgnoreMetrics(t *testing.T) {
 	tests := []struct {
 		value    string
