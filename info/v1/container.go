@@ -296,6 +296,10 @@ type CpuUsage struct {
 	// Time spent in kernel space.
 	// Unit: nanoseconds.
 	System uint64 `json:"system"`
+
+	// CPU time consumed per core in user mode
+	// Units: nanoseconds.
+	PerCpuUser []uint64 `json:"percpu_usage_user"`
 }
 
 // Cpu Completely Fair Scheduler statistics.
@@ -397,6 +401,10 @@ type MemoryStats struct {
 
 	ContainerData    MemoryStatsMemoryData `json:"container_data,omitempty"`
 	HierarchicalData MemoryStatsMemoryData `json:"hierarchical_data,omitempty"`
+}
+
+type CPUSetStats struct {
+	MemoryMigrate uint64 `json:"memory_migrate"`
 }
 
 type MemoryNumaStats struct {
@@ -957,6 +965,10 @@ type ContainerStats struct {
 
 	// Resource Control (resctrl) statistics
 	Resctrl ResctrlStats `json:"resctrl,omitempty"`
+
+	CpuSet CPUSetStats `json:"cpuset,omitempty"`
+
+	OOMEvents uint64 `json:"oom_events,omitempty"`
 }
 
 func timeEq(t1, t2 time.Time, tolerance time.Duration) bool {

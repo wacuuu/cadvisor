@@ -303,10 +303,11 @@ func (p testSubcontainersInfoProvider) GetRequestedContainersInfo(string, v2.Req
 					Timestamp: time.Unix(1395066363, 0),
 					Cpu: info.CpuStats{
 						Usage: info.CpuUsage{
-							Total:  1,
-							PerCpu: []uint64{2, 3, 4, 5},
-							User:   6,
-							System: 7,
+							Total:      1,
+							PerCpu:     []uint64{2, 3, 4, 5},
+							User:       6,
+							System:     7,
+							PerCpuUser: []uint64{2, 3, 4, 5},
 						},
 						CFS: info.CpuCFS{
 							Periods:          723,
@@ -524,6 +525,21 @@ func (p testSubcontainersInfoProvider) GetRequestedContainersInfo(string, v2.Req
 							TxQueued: 0,
 						},
 					},
+					DiskIo: info.DiskIoStats{
+						IoServiceBytes: []info.PerDiskStats{{
+							Device: "/dev/sdb",
+							Major:  8,
+							Minor:  0,
+							Stats: map[string]uint64{
+								"Async":   1,
+								"Discard": 2,
+								"Read":    3,
+								"Sync":    4,
+								"Total":   5,
+								"Write":   6,
+							},
+						}},
+					},
 					Filesystem: []info.FsStats{
 						{
 							Device:          "sda1",
@@ -708,6 +724,7 @@ func (p testSubcontainersInfoProvider) GetRequestedContainersInfo(string, v2.Req
 							},
 						},
 					},
+					CpuSet: info.CPUSetStats{MemoryMigrate: 1},
 				},
 			},
 		},

@@ -134,20 +134,53 @@ func NewPrometheusCollector(i infoProvider, f ContainerLabelsFunc, includedMetri
 		opts:            opts,
 	}
 	if includedMetrics.Has(container.CpuUsageMetrics) {
+		if includedMetrics.Has(container.PerCpuUsageMetrics) {
+			c.containerMetrics = append(c.containerMetrics, []containerMetric{
+				{
+					name:        "container_cpu_user_seconds_total",
+					help:        "Cumulative user cpu time consumed in seconds.",
+					valueType:   prometheus.CounterValue,
+					extraLabels: []string{"cpu", "namespace"},
+					getValues: func(s *info.ContainerStats) metricValues {
+						values := make(metricValues, 0, len(s.Cpu.Usage.PerCpuUser))
+						for i, value := range s.Cpu.Usage.PerCpuUser {
+							values = append(values, metricValue{
+								value:     float64(value) / float64(time.Second),
+								labels:    []string{strconv.Itoa(i), "user"},
+								timestamp: s.Timestamp,
+							})
+						}
+						return values
+					},
+				},
+			}...)
+		} else {
+			c.containerMetrics = append(c.containerMetrics, []containerMetric{
+				{
+					name:        "container_cpu_user_seconds_total",
+					help:        "Cumulative user cpu time consumed in seconds.",
+					valueType:   prometheus.CounterValue,
+					extraLabels: []string{"namespace"},
+					getValues: func(s *info.ContainerStats) metricValues {
+						values := make(metricValues, 0, 1)
+						var totalValue float64
+						totalValue = 0
+						for _, value := range s.Cpu.Usage.PerCpuUser {
+							totalValue += float64(value) / float64(time.Second)
+						}
+						values = append(values, metricValue{
+							value:     totalValue,
+							labels:    []string{""},
+							timestamp: s.Timestamp,
+						})
+
+						return values
+					},
+				},
+			}...)
+		}
 		c.containerMetrics = append(c.containerMetrics, []containerMetric{
 			{
-				name:      "container_cpu_user_seconds_total",
-				help:      "Cumulative user cpu time consumed in seconds.",
-				valueType: prometheus.CounterValue,
-				getValues: func(s *info.ContainerStats) metricValues {
-					return metricValues{
-						{
-							value:     float64(s.Cpu.Usage.User) / float64(time.Second),
-							timestamp: s.Timestamp,
-						},
-					}
-				},
-			}, {
 				name:      "container_cpu_system_seconds_total",
 				help:      "Cumulative system cpu time consumed in seconds.",
 				valueType: prometheus.CounterValue,
@@ -455,6 +488,16 @@ func NewPrometheusCollector(i infoProvider, f ContainerLabelsFunc, includedMetri
 			},
 		}...)
 	}
+	if includedMetrics.Has(container.CPUSetMetrics) {
+		c.containerMetrics = append(c.containerMetrics, containerMetric{
+			name:      "container_memory_migrate",
+			help:      "Memory migrate status.",
+			valueType: prometheus.GaugeValue,
+			getValues: func(s *info.ContainerStats) metricValues {
+				return metricValues{{value: float64(s.CpuSet.MemoryMigrate), timestamp: s.Timestamp}}
+			},
+		})
+	}
 	if includedMetrics.Has(container.MemoryNumaMetrics) {
 		c.containerMetrics = append(c.containerMetrics, []containerMetric{
 			{
@@ -755,6 +798,28 @@ func NewPrometheusCollector(i infoProvider, f ContainerLabelsFunc, includedMetri
 					return fsValues(s.Filesystem, func(fs *info.FsStats) float64 {
 						return float64(fs.WeightedIoTime) / float64(time.Second)
 					}, s.Timestamp)
+				},
+			},
+			{
+				name:        "container_blkio_device_usage_total",
+				help:        "Blkio Device bytes usage",
+				valueType:   prometheus.CounterValue,
+				extraLabels: []string{"device", "major", "minor", "operation"},
+				getValues: func(s *info.ContainerStats) metricValues {
+					var values metricValues
+					for _, diskStat := range s.DiskIo.IoServiceBytes {
+						for operation, value := range diskStat.Stats {
+							values = append(values, metricValue{
+								value: float64(value),
+								labels: []string{diskStat.Device,
+									strconv.Itoa(int(diskStat.Major)),
+									strconv.Itoa(int(diskStat.Minor)),
+									operation},
+								timestamp: s.Timestamp,
+							})
+						}
+					}
+					return values
 				},
 			},
 		}...)
@@ -1725,6 +1790,17 @@ func NewPrometheusCollector(i infoProvider, f ContainerLabelsFunc, includedMetri
 			},
 		}...)
 	}
+	if includedMetrics.Has(container.OOMMetrics) {
+		c.containerMetrics = append(c.containerMetrics, containerMetric{
+			name:      "container_oom_events_total",
+			help:      "Count of out of memory events observed for the container",
+			valueType: prometheus.CounterValue,
+			getValues: func(s *info.ContainerStats) metricValues {
+				return metricValues{{value: float64(s.OOMEvents), timestamp: s.Timestamp}}
+			},
+		})
+	}
+
 	return c
 }
 
